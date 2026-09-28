@@ -21,6 +21,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => void;
+  updateUser: (user: UserResponse) => void;
   isAuthenticated: boolean;
 }
 
@@ -72,14 +73,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setState({ user: null, token: null, isLoading: false });
   }, []);
 
+  const updateUser = useCallback((user: UserResponse) => {
+    setState(s => ({ ...s, user }));
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
       login,
       logout,
+      updateUser,
       isAuthenticated: state.user !== null && state.token !== null,
     }),
-    [state, login, logout],
+    [state, login, logout, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

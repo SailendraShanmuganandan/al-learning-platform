@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { resendVerification } from '../../api/authApi';
-import { LogOut, User, Mail, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { LogOut, User, Mail, CheckCircle2, AlertCircle, Loader2, MapPin } from 'lucide-react';
 
 /**
  * Dashboard page demonstrating the protected-route pattern and
@@ -73,6 +73,22 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            to="/profile"
+            id="nav-profile-link"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+          >
+            <User size={13} />
+            Profile
+          </Link>
+          <Link
+            to="/addresses"
+            id="nav-addresses-link"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+          >
+            <MapPin size={13} />
+            Addresses
+          </Link>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <User size={15} />
             <span id="dashboard-user-name">{user?.fullName}</span>

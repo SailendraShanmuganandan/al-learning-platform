@@ -269,4 +269,40 @@ public class AuthService {
         // Invalidate any other outstanding reset tokens for this user (second-link invalidation)
         resetTokenRepository.deleteByUser(user);
     }
+
+    /**
+     * Looks up a User entity by email. Intended for use by other packages (e.g. user)
+     * so they do not need to inject {@link UserRepository} directly.
+     *
+     * @param email the user's email (case-insensitive)
+     * @return the User entity
+     * @throws BadCredentialsException if not found
+     */
+    @Transactional(readOnly = true)
+    public User findUserByEmail(String email) {
+        return userRepository.findByEmailIgnoreCase(email.toLowerCase())
+                .orElseThrow(() -> new BadCredentialsException("User not found"));
+    }
+
+    /**
+     * Updates the mutable profile fields (full_name, phone) of the current user.
+     * Email, role, and account_status are intentionally NOT settable here.
+     *
+     * @param email    the authenticated user's email (from JWT)
+     * @param fullName new full name (must not be blank, max 150 chars — validated at controller level)
+     * @param phone    new phone (E.164 or blank — validated at controller level)
+     * @return updated UserResponse
+     */
+    public UserResponse updateProfile(String email, String fullName, String phone) {
+        User user = findUserByEmail(email);
+        if (fullName != null && !fullName.isBlank()) {
+            user.setFullName(fullName.trim());
+        }
+        // phone is optional — null means "do not change", empty string means "clear it"
+        if (phone != null) {
+            user.setPhone(phone.isBlank() ? null : phone.trim());
+        }
+        User saved = userRepository.save(user);
+        return UserResponse.from(saved);
+    }
 }

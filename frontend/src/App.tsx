@@ -7,6 +7,8 @@ import VerifyEmailPage from './features/auth/VerifyEmailPage';
 import ForgotPasswordPage from './features/auth/ForgotPasswordPage';
 import ResetPasswordPage from './features/auth/ResetPasswordPage';
 import DashboardPage from './features/dashboard/DashboardPage';
+import ProfilePage from './features/profile/ProfilePage';
+import AddressesPage from './features/addresses/AddressesPage';
 
 export default function App() {
   return (
@@ -20,9 +22,11 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Protected routes — add future pages inside this group */}
+          {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/addresses" element={<AddressesPage />} />
           </Route>
 
           {/* Default redirect */}

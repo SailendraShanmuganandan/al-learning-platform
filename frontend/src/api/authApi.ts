@@ -53,6 +53,9 @@ export interface MessageResponse {
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.ok) {
+    if (res.status === 204 || res.headers.get('content-length') === '0') {
+      return undefined as T;
+    }
     return res.json() as Promise<T>;
   }
   // Parse the structured error body from GlobalExceptionHandler
