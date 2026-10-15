@@ -3,11 +3,11 @@ package com.allearning.backend.security;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,7 +17,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import java.time.OffsetDateTime;
 
-
 /**
  * Central Spring Security configuration.
  * <p>
@@ -26,7 +25,10 @@ import java.time.OffsetDateTime;
  *   <li>GET  /api/health</li>
  *   <li>POST /api/auth/register</li>
  *   <li>POST /api/auth/login</li>
+ *   <li>GET  /api/subjects (active subjects only)</li>
+ *   <li>GET  /api/subjects/{id}</li>
  * </ul>
+ * Admin endpoints (/api/admin/**) require ROLE_ADMIN.
  * All other requests require a valid JWT bearer token.
  */
 @Configuration
@@ -53,6 +55,18 @@ public class SecurityConfig {
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password"
                         ).permitAll()
+                        // Public academic endpoints — active subjects and their chapters only
+                        .requestMatchers(HttpMethod.GET, "/api/subjects", "/api/subjects/**").permitAll()
+                        // /api/chapters/{id} and /api/chapters/{chapterId}/products both covered here
+                        .requestMatchers(HttpMethod.GET, "/api/chapters", "/api/chapters/**").permitAll()
+                        // Public catalog browsing — PUBLISHED products only (enforced in service)
+                        .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").permitAll()
+                        // Admin-only area — authenticated STUDENT gets 403
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Shopping cart — authenticated STUDENT only; ADMIN gets 403, unauthenticated gets 401
+                        .requestMatchers("/api/cart", "/api/cart/**").hasRole("STUDENT")
+                        // Orders & Checkout — authenticated STUDENT only; ADMIN gets 403, unauthenticated gets 401
+                        .requestMatchers("/api/orders", "/api/orders/**").hasRole("STUDENT")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
@@ -63,6 +77,15 @@ public class SecurityConfig {
                                     "{\"timestamp\":\"%s\",\"status\":401,\"error\":\"Unauthorized\",\"message\":\"%s\"}",
                                     OffsetDateTime.now(),
                                     "Full authentication is required to access this resource"
+                            ));
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write(String.format(
+                                    "{\"timestamp\":\"%s\",\"status\":403,\"error\":\"Forbidden\",\"message\":\"%s\"}",
+                                    OffsetDateTime.now(),
+                                    "You do not have permission to access this resource"
                             ));
                         })
                 )

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCart } from '../../contexts/CartContext';
 import { resendVerification } from '../../api/authApi';
-import { LogOut, User, Mail, CheckCircle2, AlertCircle, Loader2, MapPin } from 'lucide-react';
+import { LogOut, User, Mail, CheckCircle2, AlertCircle, Loader2, MapPin, BookOpen, Shield, ShoppingCart, ShoppingBag } from 'lucide-react';
 
 /**
  * Dashboard page demonstrating the protected-route pattern and
@@ -10,6 +11,7 @@ import { LogOut, User, Mail, CheckCircle2, AlertCircle, Loader2, MapPin } from '
  */
 export default function DashboardPage() {
   const { user, logout } = useAuth();
+  const { itemCount } = useCart();
   const navigate = useNavigate();
 
   const [resending, setResending] = useState(false);
@@ -74,6 +76,40 @@ export default function DashboardPage() {
 
         <div className="flex items-center gap-3">
           <Link
+            to="/subjects"
+            id="nav-subjects-link"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+          >
+            <BookOpen size={13} />
+            Subjects
+          </Link>
+          <Link
+            to="/products"
+            id="nav-products-link"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+          >
+            <ShoppingBag size={13} />
+            Notes &amp; Videos
+          </Link>
+          {user?.role === 'STUDENT' && (
+            <Link
+              to="/cart"
+              id="nav-cart-link"
+              className="relative flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
+            >
+              <ShoppingCart size={13} />
+              <span>Cart</span>
+              {itemCount > 0 && (
+                <span
+                  id="cart-badge-count"
+                  className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold"
+                >
+                  {itemCount}
+                </span>
+              )}
+            </Link>
+          )}
+          <Link
             to="/profile"
             id="nav-profile-link"
             className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
@@ -89,6 +125,16 @@ export default function DashboardPage() {
             <MapPin size={13} />
             Addresses
           </Link>
+          {user?.role === 'ADMIN' && (
+            <Link
+              to="/admin/subjects"
+              id="nav-admin-link"
+              className="flex items-center gap-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 text-xs font-semibold hover:bg-primary/20 transition"
+            >
+              <Shield size={13} />
+              Admin
+            </Link>
+          )}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <User size={15} />
             <span id="dashboard-user-name">{user?.fullName}</span>

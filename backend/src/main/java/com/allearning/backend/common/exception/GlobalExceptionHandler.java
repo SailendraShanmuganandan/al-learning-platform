@@ -39,13 +39,13 @@ public class GlobalExceptionHandler {
         }
 
         Map<String, Object> body = errorBody(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "Validation Failed",
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
                 "One or more fields have invalid values"
         );
         body.put("fields", fieldErrors);
 
-        return ResponseEntity.unprocessableEntity().body(body);
+        return ResponseEntity.badRequest().body(body);
     }
 
     // --- Duplicate-email conflict (409) ---
@@ -57,6 +57,35 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(errorBody(HttpStatus.CONFLICT, "Conflict", ex.getMessage()));
+    }
+
+    // --- Shopping cart conflict (409) ---
+
+    @ExceptionHandler(com.allearning.backend.commerce.exception.CartConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleCartConflict(
+            com.allearning.backend.commerce.exception.CartConflictException ex) {
+
+        Map<String, Object> body = errorBody(HttpStatus.CONFLICT, ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(body);
+    }
+
+    // --- Order / Checkout exceptions (400, 404, 409) ---
+
+    @ExceptionHandler(com.allearning.backend.commerce.exception.OrderException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderException(
+            com.allearning.backend.commerce.exception.OrderException ex) {
+
+        Map<String, Object> body = errorBody(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        if (ex.getDetails() != null) {
+            body.putAll(ex.getDetails());
+        }
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(body);
     }
 
     // --- Authentication & Account Exceptions ---
@@ -83,9 +112,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleEmailNotVerified(
             EmailNotVerifiedException ex) {
 
+        Map<String, Object> body = errorBody(HttpStatus.FORBIDDEN, ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(errorBody(HttpStatus.FORBIDDEN, ex.getErrorCode(), ex.getMessage()));
+                .body(body);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

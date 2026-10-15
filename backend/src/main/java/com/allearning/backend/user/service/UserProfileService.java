@@ -113,6 +113,17 @@ public class UserProfileService {
     }
 
     /**
+     * Cross-module internal method returning one of the current user's addresses by ID
+     * (owned by that user), as a plain DTO.
+     * Returns 404 if not found or not owned.
+     */
+    @Transactional(readOnly = true)
+    public AddressResponse getUserAddress(Long userId, Long addressId) {
+        Address address = findOwnedAddress(userId, addressId);
+        return AddressResponse.from(address);
+    }
+
+    /**
      * Updates a single address (ownership check included).
      * If {@code isDefault} is set to true, previous default is cleared atomically.
      */

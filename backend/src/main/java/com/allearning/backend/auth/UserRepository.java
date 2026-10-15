@@ -16,4 +16,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE lower(u.email) = lower(:email)")
     Optional<User> findByEmailIgnoreCase(@Param("email") String email);
+
+    boolean existsByRole(UserRole role);
 }

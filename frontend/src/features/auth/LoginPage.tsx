@@ -8,8 +8,13 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Where to go after login — the protected page they originally tried to visit
-  const from: string = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/dashboard';
+  // Where to go after login — the protected page or returnUrl they originally tried to visit
+  const searchParams = new URLSearchParams(location.search);
+  const returnUrl = searchParams.get('returnUrl');
+  const from: string =
+    returnUrl ||
+    (location.state as { from?: { pathname: string } })?.from?.pathname ||
+    '/dashboard';
 
   // If already authenticated, redirect out of the login page immediately
   useEffect(() => {
