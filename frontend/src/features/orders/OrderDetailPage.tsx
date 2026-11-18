@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { getOrder, type Order } from '../../api/orderApi';
-import { useAuth } from '../../contexts/AuthContext';
-import { useCart } from '../../contexts/CartContext';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { getOrder, createPayment, type Order } from '../../api/orderApi';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 import {
   ArrowLeft,
   Package,
@@ -16,14 +16,17 @@ import {
   CreditCard,
   Loader2,
   ShieldCheck,
-  ShoppingBag,
-  ShoppingCart
+  AlertTriangle,
+  PlayCircle,
+  Truck,
+  ShoppingBag
 } from 'lucide-react';
 
 export default function OrderDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
-  const { itemCount } = useCart();
+  const { orderId, id } = useParams<{ orderId?: string; id?: string }>();
+  const effectiveId = orderId || id;
+  const [searchParams] = useSearchParams();
+  const paymentQuery = searchParams.get('payment'); // 'return' | 'cancelled' | null
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,10 +34,29 @@ export default function OrderDetailPage() {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [isExpired, setIsExpired] = useState(false);
 
+  // Payment state
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Return polling state
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollResult, setPollResult] = useState<'pending' | 'confirmed' | 'unconfirmed' | null>(null);
+  const pollingAttempts = useRef(0);
+
   useEffect(() => {
-    if (!id) return;
-    loadOrder(parseInt(id, 10));
-  }, [id]);
+    if (!effectiveId) {
+      setError('Order ID is missing.');
+      setLoading(false);
+      return;
+    }
+    const parsed = parseInt(effectiveId, 10);
+    if (isNaN(parsed)) {
+      setError('Invalid order ID.');
+      setLoading(false);
+      return;
+    }
+    loadOrder(parsed);
+  }, [effectiveId]);
 
   async function loadOrder(orderId: number) {
     setLoading(true);
@@ -49,16 +71,67 @@ export default function OrderDetailPage() {
     }
   }
 
+  // Handle return flow polling (?payment=return)
+  useEffect(() => {
+    if (paymentQuery !== 'return' || !order) return;
+
+    if (order.paymentStatus === 'PAID') {
+      setPollResult('confirmed');
+      setIsPolling(false);
+      return;
+    }
+
+    setIsPolling(true);
+    setPollResult('pending');
+    pollingAttempts.current = 0;
+
+    const pollInterval = setInterval(async () => {
+      pollingAttempts.current += 1;
+      try {
+        const fresh = await getOrder(order.orderId);
+        setOrder(fresh);
+
+        if (fresh.paymentStatus === 'PAID') {
+          setPollResult('confirmed');
+          setIsPolling(false);
+          clearInterval(pollInterval);
+          return;
+        }
+
+        // 15 attempts * 2s = 30 seconds
+        if (pollingAttempts.current >= 15) {
+          setPollResult('unconfirmed');
+          setIsPolling(false);
+          clearInterval(pollInterval);
+        }
+      } catch (err) {
+        if (pollingAttempts.current >= 15) {
+          setPollResult('unconfirmed');
+          setIsPolling(false);
+          clearInterval(pollInterval);
+        }
+      }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [paymentQuery, order?.orderId]);
+
   // Countdown timer for pending order
   useEffect(() => {
     if (!order?.expiresAt) return;
+
+    if (order.paymentStatus !== 'PENDING') {
+      setIsExpired(order.paymentStatus === 'EXPIRED');
+      setTimeRemaining(order.paymentStatus === 'EXPIRED' ? 'Expired — payment window closed' : '');
+      return;
+    }
 
     function updateRemaining() {
       const expiry = new Date(order!.expiresAt).getTime();
       const now = Date.now();
       const diff = expiry - now;
 
-      if (diff <= 0 || order?.paymentStatus === 'EXPIRED') {
+      if (diff <= 0) {
         setIsExpired(true);
         setTimeRemaining('Expired — payment window closed');
       } else {
@@ -73,6 +146,38 @@ export default function OrderDetailPage() {
     const timer = setInterval(updateRemaining, 1000);
     return () => clearInterval(timer);
   }, [order]);
+
+  async function handlePayNow() {
+    if (!order || isSubmittingPayment || isOrderExpired || order.paymentStatus !== 'PENDING') {
+      return;
+    }
+
+    setIsSubmittingPayment(true);
+    setPaymentError(null);
+
+    try {
+      const paymentData = await createPayment(order.orderId);
+
+      // Build hidden HTML form and submit POST to checkoutUrl
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = paymentData.checkoutUrl;
+
+      for (const [key, value] of Object.entries(paymentData.fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch (err: any) {
+      setPaymentError(err.message || 'Failed to initiate payment. Please try again.');
+      setIsSubmittingPayment(false);
+    }
+  }
 
   function formatLKR(val: number) {
     return `Rs. ${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -107,52 +212,21 @@ export default function OrderDetailPage() {
     );
   }
 
-  const isOrderExpired = order.paymentStatus === 'EXPIRED' || isExpired;
+  const isOrderExpired = order.paymentStatus === 'EXPIRED' || (order.paymentStatus === 'PENDING' && isExpired);
+  const hasVideoItems = order.items.some(item => item.productType === 'VIDEO');
+  const isFailedPayment = order.latestPaymentStatus === 'FAILED' || order.paymentStatus === 'FAILED';
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Navbar */}
-      <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-              AL
-            </div>
-            <span className="font-semibold text-foreground text-sm hidden sm:inline">AL Learning Platform</span>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Link
-            to="/products"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ShoppingBag size={13} />
-            <span className="hidden sm:inline">Catalog</span>
-          </Link>
-          <Link
-            to="/cart"
-            className="relative flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ShoppingCart size={13} />
-            <span>Cart</span>
-            {itemCount > 0 && (
-              <span className="rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold">
-                {itemCount}
-              </span>
-            )}
-          </Link>
-          <Link
-            to="/orders"
-            className="flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-semibold text-primary transition"
-          >
-            <Package size={13} />
-            <span className="hidden sm:inline">My Orders</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <PageContainer>
+      <div className="space-y-6">
+        <PageHeader
+          title={`Order #${order.orderId}`}
+          description="Review order summary, items, payment and delivery status."
+          breadcrumb={[
+            { label: 'My Orders', path: '/orders' },
+            { label: `Order #${order.orderId}` },
+          ]}
+        />
         <div>
           <Link
             to="/orders"
@@ -173,14 +247,20 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Status indicators */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {order.paymentStatus === 'PAID' && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                   <CheckCircle2 size={13} />
                   Paid
                 </span>
               )}
-              {order.paymentStatus === 'PENDING' && !isOrderExpired && (
+              {order.paymentStatus === 'PENDING' && !isOrderExpired && isFailedPayment && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-destructive/10 text-destructive border border-destructive/20">
+                  <AlertCircle size={13} />
+                  Payment failed (retry available)
+                </span>
+              )}
+              {order.paymentStatus === 'PENDING' && !isOrderExpired && !isFailedPayment && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
                   <Clock size={13} />
                   Awaiting payment
@@ -196,7 +276,67 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Status explanation banner */}
+        {/* Payment Error Alert */}
+        {paymentError && (
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive flex items-center gap-3 text-xs">
+            <AlertCircle size={16} className="shrink-0" />
+            <span>{paymentError}</span>
+          </div>
+        )}
+
+        {/* Return flow banners (?payment=return) */}
+        {paymentQuery === 'return' && (
+          <div>
+            {isPolling && (
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 shadow-sm flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+                <div className="text-xs">
+                  <p className="font-bold text-foreground text-sm">Verifying payment with PayHere...</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Please wait a moment while we confirm receipt of your payment.
+                  </p>
+                </div>
+              </div>
+            )}
+            {!isPolling && pollResult === 'confirmed' && (
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-5 shadow-sm flex items-center gap-3">
+                <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">Payment confirmed</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Your payment was successfully received and verified!
+                  </p>
+                </div>
+              </div>
+            )}
+            {!isPolling && pollResult === 'unconfirmed' && (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 shadow-sm flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0" />
+                <div className="text-xs">
+                  <p className="font-bold text-amber-600 dark:text-amber-400 text-sm">Payment status pending</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    We haven't received confirmation yet. Please check My Orders in a minute and do NOT pay again.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cancelled flow banner (?payment=cancelled) */}
+        {paymentQuery === 'cancelled' && (
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 shadow-sm flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+            <div className="text-xs">
+              <p className="font-bold text-foreground text-sm">Payment cancelled</p>
+              <p className="text-muted-foreground mt-0.5">
+                The payment process was cancelled on PayHere. You can try again below while your order reservation is active.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Status explanation / Payment CTA banner */}
         {isOrderExpired ? (
           <div className="rounded-2xl border border-border bg-muted/40 p-5 shadow-sm flex items-start gap-3">
             <XCircle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
@@ -230,14 +370,136 @@ export default function OrderDetailPage() {
 
             <button
               type="button"
-              disabled
-              className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-5 py-2.5 text-xs font-bold opacity-50 cursor-not-allowed shadow-sm"
+              onClick={handlePayNow}
+              disabled={isSubmittingPayment || isOrderExpired}
+              className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-6 py-3 text-xs font-bold hover:bg-primary/90 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CreditCard size={14} />
-              <span>Pay Now (Coming Soon)</span>
+              {isSubmittingPayment ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Redirecting to PayHere...</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard size={15} />
+                  <span>Pay Now</span>
+                </>
+              )}
             </button>
           </div>
         ) : null}
+
+        {/* Video Course Access Banner for PAID Orders */}
+        {order.paymentStatus === 'PAID' && hasVideoItems && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-2 text-primary font-bold text-sm">
+                <PlayCircle size={18} />
+                <span>Video Course Access Unlocked</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                You now own access to the video lessons in this order.
+              </p>
+            </div>
+
+            <Link
+              to="/my-videos"
+              id="order-detail-my-videos-btn"
+              className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2.5 text-xs font-bold transition shadow-sm"
+            >
+              <Video size={14} />
+              <span>Go to My Videos</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Physical Item Fulfillment Progress (Processing -> Shipped -> Delivered) */}
+        {order.fulfillmentStatus !== 'NOT_REQUIRED' && (
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Truck className="h-5 w-5 text-primary" />
+                <h2 className="text-base font-bold text-foreground">Delivery Progress</h2>
+              </div>
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 capitalize">
+                {order.fulfillmentStatus.toLowerCase().replace('_', ' ')}
+              </span>
+            </div>
+
+            {/* Step Progress Bar */}
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              {/* Step 1: Processing */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition ${
+                    order.fulfillmentStatus === 'DELIVERED' || order.fulfillmentStatus === 'SHIPPED'
+                      ? 'bg-emerald-500 text-white shadow-sm'
+                      : order.fulfillmentStatus === 'PROCESSING' || order.fulfillmentStatus === 'PENDING'
+                      ? 'bg-primary text-primary-foreground shadow-sm ring-4 ring-primary/20'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {order.fulfillmentStatus === 'DELIVERED' || order.fulfillmentStatus === 'SHIPPED' ? (
+                    <CheckCircle2 size={16} />
+                  ) : (
+                    '1'
+                  )}
+                </div>
+                <span className="font-semibold text-foreground">Processing</span>
+                <span className="text-[10px] text-muted-foreground mt-0.5">
+                  {order.fulfillmentStatus === 'PENDING' ? 'Queued' : 'In Preparation'}
+                </span>
+              </div>
+
+              {/* Step 2: Shipped */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition ${
+                    order.fulfillmentStatus === 'DELIVERED'
+                      ? 'bg-emerald-500 text-white shadow-sm'
+                      : order.fulfillmentStatus === 'SHIPPED'
+                      ? 'bg-primary text-primary-foreground shadow-sm ring-4 ring-primary/20'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {order.fulfillmentStatus === 'DELIVERED' ? <CheckCircle2 size={16} /> : '2'}
+                </div>
+                <span className="font-semibold text-foreground">Shipped</span>
+                <span className="text-[10px] text-muted-foreground mt-0.5">
+                  {order.fulfillmentStatus === 'SHIPPED' ? 'In Transit' : order.fulfillmentStatus === 'DELIVERED' ? 'Dispatched' : 'Awaiting Dispatch'}
+                </span>
+              </div>
+
+              {/* Step 3: Delivered */}
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-2 transition ${
+                    order.fulfillmentStatus === 'DELIVERED'
+                      ? 'bg-emerald-500 text-white shadow-sm ring-4 ring-emerald-500/20'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {order.fulfillmentStatus === 'DELIVERED' ? <CheckCircle2 size={16} /> : '3'}
+                </div>
+                <span className="font-semibold text-foreground">Delivered</span>
+                <span className="text-[10px] text-muted-foreground mt-0.5">
+                  {order.fulfillmentStatus === 'DELIVERED' ? 'Completed' : 'Pending Delivery'}
+                </span>
+              </div>
+            </div>
+
+            {/* Tracking Note */}
+            {order.trackingNote && (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs space-y-1 mt-3">
+                <div className="font-semibold text-primary flex items-center gap-1.5">
+                  <Package size={14} />
+                  <span>Courier Tracking Reference</span>
+                </div>
+                <p className="text-foreground font-mono text-sm font-semibold">{order.trackingNote}</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Order Details & Summary Card */}
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
@@ -317,7 +579,7 @@ export default function OrderDetailPage() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </PageContainer>
   );
 }

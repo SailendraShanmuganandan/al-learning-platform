@@ -33,7 +33,10 @@ public record PublicProductDetailResponse(
 
         // Video-specific (null for PHYSICAL_NOTE). video_url intentionally omitted.
         Integer durationSeconds,
-        String videoDescription
+        String videoDescription,
+        Boolean hasAttachmentPdf,
+        String attachmentPdfName,
+        Long attachmentPdfSize
 ) {
     /**
      * Builds a public response from the product and a pre-resolved list of public chapter summaries.
@@ -59,10 +62,16 @@ public record PublicProductDetailResponse(
         // Video fields — video_url intentionally excluded
         Integer durationSeconds = null;
         String videoDescription = null;
+        Boolean hasAttachmentPdf = false;
+        String attachmentPdfName = null;
+        Long attachmentPdfSize = null;
         if (product.getProductType() == ProductType.VIDEO) {
             Video video = product.getVideo();
             durationSeconds = (video != null) ? video.getDurationSeconds() : null;
             videoDescription = (video != null) ? video.getDescription() : null;
+            hasAttachmentPdf = (video != null && video.getPdfFilePath() != null && !video.getPdfFilePath().isBlank());
+            attachmentPdfName = (video != null) ? video.getPdfOriginalFilename() : null;
+            attachmentPdfSize = (video != null) ? video.getPdfFileSize() : null;
         }
 
         return new PublicProductDetailResponse(
@@ -77,7 +86,10 @@ public record PublicProductDetailResponse(
                 pageCount,
                 inStock,
                 durationSeconds,
-                videoDescription
+                videoDescription,
+                hasAttachmentPdf,
+                attachmentPdfName,
+                attachmentPdfSize
         );
     }
 }

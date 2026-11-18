@@ -8,6 +8,8 @@ import {
   createAdminProduct,
   updateAdminProduct,
   setAdminProductStatus,
+  uploadAdminProductAttachmentPdf,
+  deleteAdminProductAttachmentPdf,
   type ProductSummaryResponse,
   type ProductType,
   type ProductStatus,
@@ -16,6 +18,7 @@ import {
 import { getAdminSubjects, type SubjectResponse } from '../../../api/subjectApi';
 import { getAllAdminChapters, type ChapterResponse } from '../../../api/chapterApi';
 import type { ApiError } from '../../../api/authApi';
+import { videoApi } from '../../../api/videoApi';
 import {
   Package,
   Plus,
@@ -27,6 +30,7 @@ import {
   Loader2,
   FileText,
   Video,
+  Play,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -87,7 +91,14 @@ const productFormSchema = z.object({
     .optional()
     .transform((v) => (v && v.trim() !== '' ? parseInt(v, 10) : undefined)),
   // Video-specific fields
-  videoUrl: z.string().optional().or(z.literal('')),
+  providerVideoId: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine(
+      (v) => !v || v.trim() === '' || /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(v.trim()),
+      { message: 'Must be a valid UUID (e.g. 32d140e2-e4f4-4eec-9d53-20371e9be607)' }
+    ),
   durationSeconds: z
     .string()
     .optional()
@@ -139,6 +150,20 @@ export default function AdminProductsPage() {
   const [statusSubmitting, setStatusSubmitting] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
+  // Playback test modal state
+  const [playbackModal, setPlaybackModal] = useState<{
+    productId: number;
+    productName: string;
+    embedUrl: string;
+  } | null>(null);
+  const [playbackLoading, setPlaybackLoading] = useState<number | null>(null);
+
+  // PDF attachment state for video products
+  const [selectedPdfFile, setSelectedPdfFile] = useState<File | null>(null);
+  const [existingPdfInfo, setExistingPdfInfo] = useState<{ name: string | null; size: number | null } | null>(null);
+  const [removingPdf, setRemovingPdf] = useState(false);
+  const [pdfUploadError, setPdfUploadError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -156,7 +181,7 @@ export default function AdminProductsPage() {
       thumbnailUrl: '',
       pageCount: undefined,
       stockQuantity: undefined,
-      videoUrl: '',
+      providerVideoId: '',
       durationSeconds: undefined,
       videoDescription: '',
     },
@@ -226,12 +251,15 @@ export default function AdminProductsPage() {
       thumbnailUrl: '',
       pageCount: undefined,
       stockQuantity: undefined,
-      videoUrl: '',
+      providerVideoId: '',
       durationSeconds: undefined,
       videoDescription: '',
     });
     setFormError(null);
     setModalMode('create');
+    setSelectedPdfFile(null);
+    setExistingPdfInfo(null);
+    setPdfUploadError(null);
   }
 
   async function openEditModal(summary: ProductSummaryResponse) {
@@ -253,10 +281,18 @@ export default function AdminProductsPage() {
         thumbnailUrl: full.thumbnailUrl || '',
         pageCount: full.pageCount ?? undefined,
         stockQuantity: full.stockQuantity ?? undefined,
-        videoUrl: full.videoUrl || '',
+        providerVideoId: full.providerVideoId || '',
         durationSeconds: full.durationSeconds ?? undefined,
         videoDescription: full.videoDescription || '',
       });
+      // Populate existing PDF info
+      if (full.productType === 'VIDEO') {
+        setExistingPdfInfo(full.hasAttachmentPdf ? { name: full.attachmentPdfName ?? null, size: full.attachmentPdfSize ?? null } : null);
+      } else {
+        setExistingPdfInfo(null);
+      }
+      setSelectedPdfFile(null);
+      setPdfUploadError(null);
     } catch (err) {
       const apiErr = err as ApiError;
       setFormError(apiErr?.message || 'Failed to load product details.');
@@ -269,6 +305,9 @@ export default function AdminProductsPage() {
     if (submitting) return;
     setModalMode(null);
     setFormError(null);
+    setSelectedPdfFile(null);
+    setExistingPdfInfo(null);
+    setPdfUploadError(null);
   }
 
   function toggleChapterSelection(chapterId: number) {
@@ -295,19 +334,17 @@ export default function AdminProductsPage() {
             return;
           }
         } else {
-          if (!values.videoUrl || values.videoUrl.trim() === '') {
-            setFormError('Video URL is required for video courses.');
-            setSubmitting(false);
-            return;
-          }
-          if (!values.durationSeconds || values.durationSeconds <= 0) {
-            setFormError('Video duration is required and must be greater than 0.');
-            setSubmitting(false);
-            return;
+          if (values.providerVideoId && values.providerVideoId.trim() !== '') {
+            const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+            if (!uuidRegex.test(values.providerVideoId.trim())) {
+              setFormError('Bunny Video ID must be a valid UUID/GUID.');
+              setSubmitting(false);
+              return;
+            }
           }
         }
 
-        await createAdminProduct({
+        const created = await createAdminProduct({
           name: values.name.trim(),
           description: values.description?.trim() || null,
           productType: selectedType,
@@ -316,10 +353,20 @@ export default function AdminProductsPage() {
           chapterIds: selectedChapterIds,
           pageCount: selectedType === 'PHYSICAL_NOTE' ? values.pageCount : undefined,
           stockQuantity: selectedType === 'PHYSICAL_NOTE' ? values.stockQuantity ?? 0 : undefined,
-          videoUrl: selectedType === 'VIDEO' ? values.videoUrl?.trim() : undefined,
+          providerVideoId: selectedType === 'VIDEO' ? values.providerVideoId?.trim() || null : undefined,
           durationSeconds: selectedType === 'VIDEO' ? values.durationSeconds : undefined,
           videoDescription: selectedType === 'VIDEO' ? values.videoDescription?.trim() : undefined,
         });
+
+        // Upload PDF if selected (create mode)
+        if (selectedType === 'VIDEO' && selectedPdfFile && created.productId) {
+          try {
+            await uploadAdminProductAttachmentPdf(created.productId, selectedPdfFile);
+          } catch {
+            // Non-fatal: product was created; show a warning
+            setPdfUploadError('Product saved, but PDF upload failed. You can retry from Edit.');
+          }
+        }
 
         setActionSuccess(`Product "${values.name}" created successfully as DRAFT.`);
       } else if (typeof modalMode === 'number') {
@@ -332,10 +379,19 @@ export default function AdminProductsPage() {
           chapterIds: selectedChapterIds,
           pageCount: selectedType === 'PHYSICAL_NOTE' ? values.pageCount : undefined,
           stockQuantity: selectedType === 'PHYSICAL_NOTE' ? values.stockQuantity : undefined,
-          videoUrl: selectedType === 'VIDEO' ? values.videoUrl?.trim() : undefined,
+          providerVideoId: selectedType === 'VIDEO' ? values.providerVideoId?.trim() || null : undefined,
           durationSeconds: selectedType === 'VIDEO' ? values.durationSeconds : undefined,
           videoDescription: selectedType === 'VIDEO' ? values.videoDescription?.trim() : undefined,
         });
+
+        // Upload new PDF if selected (edit mode)
+        if (selectedType === 'VIDEO' && selectedPdfFile) {
+          try {
+            await uploadAdminProductAttachmentPdf(modalMode, selectedPdfFile);
+          } catch {
+            setPdfUploadError('Product saved, but PDF upload failed. Please retry.');
+          }
+        }
 
         setActionSuccess(`Product "${values.name}" updated successfully.`);
       }
@@ -348,6 +404,22 @@ export default function AdminProductsPage() {
       setFormError(apiErr?.message || 'Failed to save product. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // ── Status Transition Modal ────────────────────────────────────────────────
+
+  async function handleRemovePdf() {
+    if (typeof modalMode !== 'number') return;
+    setRemovingPdf(true);
+    try {
+      await deleteAdminProductAttachmentPdf(modalMode);
+      setExistingPdfInfo(null);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setPdfUploadError(apiErr?.message || 'Failed to remove PDF');
+    } finally {
+      setRemovingPdf(false);
     }
   }
 
@@ -379,6 +451,22 @@ export default function AdminProductsPage() {
       );
     } finally {
       setStatusSubmitting(false);
+    }
+  }
+
+  async function handleTestPlayback(productId: number, productName: string) {
+    setPlaybackLoading(productId);
+    try {
+      const res = await videoApi.getAdminPlayback(productId);
+      setPlaybackModal({
+        productId,
+        productName,
+        embedUrl: res.embedUrl,
+      });
+    } catch (err: any) {
+      alert(err?.message || 'Failed to load playback preview. Please ensure Bunny Video ID is configured.');
+    } finally {
+      setPlaybackLoading(null);
     }
   }
 
@@ -681,6 +769,20 @@ export default function AdminProductsPage() {
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5 justify-end">
+                        {/* Test Playback button for video courses */}
+                        {p.productType === 'VIDEO' && (
+                          <button
+                            type="button"
+                            onClick={() => handleTestPlayback(p.productId, p.name)}
+                            disabled={playbackLoading === p.productId}
+                            className="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 transition disabled:opacity-50"
+                            title="Test video playback"
+                          >
+                            <Play size={11} className={playbackLoading === p.productId ? 'animate-spin' : ''} />
+                            <span>Test playback</span>
+                          </button>
+                        )}
+
                         {/* Edit Button */}
                         <button
                           type="button"
@@ -1015,28 +1117,33 @@ export default function AdminProductsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1 sm:col-span-2">
                       <label className="block text-xs font-medium text-foreground">
-                        Video URL <span className="text-destructive">*</span>
+                        Bunny Video ID
                       </label>
                       <input
                         type="text"
-                        {...register('videoUrl')}
-                        placeholder="https://player.vimeo.com/video/..."
-                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+                        {...register('providerVideoId')}
+                        placeholder="e.g. 32d140e2-e4f4-4eec-9d53-20371e9be607"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
                       />
+                      {errors.providerVideoId && (
+                        <p className="text-[11px] text-destructive">
+                          {errors.providerVideoId.message}
+                        </p>
+                      )}
                       <p className="text-[10px] text-muted-foreground">
-                        URL string only; no video media files are stored on this server.
+                        Bunny Stream Video GUID. Required before publishing video courses.
                       </p>
                     </div>
 
                     <div className="space-y-1">
                       <label className="block text-xs font-medium text-foreground">
-                        Duration in Seconds <span className="text-destructive">*</span>
+                        Duration in Seconds
                       </label>
                       <input
                         type="number"
                         min="1"
                         {...register('durationSeconds')}
-                        placeholder="3600 (1 hour)"
+                        placeholder="3600 (Auto-filled from Bunny if empty)"
                         className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
                       />
                       {watchedDuration && watchedDuration > 0 && (
@@ -1056,6 +1163,68 @@ export default function AdminProductsPage() {
                         placeholder="Resolution, lecture notes, or timestamps"
                         className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
                       />
+                    </div>
+
+                    {/* ── PDF Attachment ── */}
+                    <div className="space-y-2 sm:col-span-2">
+                      <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <FileText size={14} />
+                        <span>Supplementary Lecture Notes (PDF) — Optional</span>
+                      </p>
+
+                      {existingPdfInfo && (
+                        <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText size={13} className="text-primary shrink-0" />
+                            <span className="truncate font-medium">{existingPdfInfo.name ?? 'Lecture Notes'}</span>
+                            {existingPdfInfo.size && (
+                              <span className="text-muted-foreground shrink-0">
+                                ({(existingPdfInfo.size / 1024 / 1024).toFixed(2)} MB)
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={removingPdf}
+                            onClick={handleRemovePdf}
+                            className="text-destructive hover:text-destructive/80 font-medium shrink-0 flex items-center gap-1 disabled:opacity-50"
+                          >
+                            {removingPdf ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                            Remove
+                          </button>
+                        </div>
+                      )}
+
+                      {!existingPdfInfo && (
+                        <div>
+                          <input
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            className="block w-full text-xs border border-border rounded-xl px-3 py-2 cursor-pointer"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              setPdfUploadError(null);
+                              if (file && file.size > 25 * 1024 * 1024) {
+                                setPdfUploadError('PDF file must be 25 MB or smaller.');
+                                setSelectedPdfFile(null);
+                              } else {
+                                setSelectedPdfFile(file);
+                              }
+                            }}
+                          />
+                          {selectedPdfFile && (
+                            <p className="text-[11px] text-primary mt-1">
+                              Selected: {selectedPdfFile.name} ({(selectedPdfFile.size / 1024 / 1024).toFixed(2)} MB) — will upload on save
+                            </p>
+                          )}
+                          {pdfUploadError && <p className="text-[11px] text-destructive mt-1">{pdfUploadError}</p>}
+                          <p className="text-[10px] text-muted-foreground mt-1">Max 25 MB · PDF only · Students can download after purchasing.</p>
+                        </div>
+                      )}
+
+                      {existingPdfInfo && (
+                        <p className="text-[10px] text-muted-foreground">To replace: first remove the existing PDF, then upload a new one.</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1246,6 +1415,51 @@ export default function AdminProductsPage() {
                     ? 'Archive'
                     : 'Restore'}
                 </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Admin Playback Test Modal ─────────────────────────────────────── */}
+      {playbackModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-xs">
+          <div className="relative w-full max-w-3xl flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                  <Video size={16} className="text-purple-500" />
+                  <span>Admin Playback Preview: {playbackModal.productName}</span>
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Test Bunny Stream token-authenticated playback before publishing.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPlaybackModal(null)}
+                className="rounded-lg p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black shadow-inner">
+                <iframe
+                  src={playbackModal.embedUrl}
+                  loading="lazy"
+                  className="w-full h-full border-0"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-border px-6 py-3 bg-muted/20">
+              <button
+                type="button"
+                onClick={() => setPlaybackModal(null)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted transition"
+              >
+                Close
               </button>
             </div>
           </div>

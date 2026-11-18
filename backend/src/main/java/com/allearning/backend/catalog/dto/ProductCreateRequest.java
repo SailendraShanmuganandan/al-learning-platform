@@ -32,7 +32,7 @@ public record ProductCreateRequest(
         Integer stockQuantity,
 
         // Video-specific fields
-        String videoUrl,
+        String providerVideoId,
         Integer durationSeconds,
         String videoDescription
 ) {}

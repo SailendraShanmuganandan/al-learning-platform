@@ -61,12 +61,29 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/chapters", "/api/chapters/**").permitAll()
                         // Public catalog browsing — PUBLISHED products only (enforced in service)
                         .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").permitAll()
+                        // Public classes browsing — ACTIVE classes under ACTIVE subjects
+                        .requestMatchers(HttpMethod.GET, "/api/classes", "/api/classes/**").permitAll()
+                        // Public announcements browsing — PUBLISHED announcements only
+                        .requestMatchers(HttpMethod.GET, "/api/announcements", "/api/announcements/**").permitAll()
+                        // Public quiz availability (NO questions exposed)
+                        .requestMatchers(HttpMethod.GET, "/api/quizzes/*/my-attempts").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/quizzes/*").permitAll()
+                        // Public contact message submissions (works with or without login token)
+                        .requestMatchers(HttpMethod.POST, "/api/contact").permitAll()
+                        // Student class registration — authenticated STUDENT only
+                        .requestMatchers(HttpMethod.POST, "/api/classes/*/register").hasRole("STUDENT")
                         // Admin-only area — authenticated STUDENT gets 403
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Shopping cart — authenticated STUDENT only; ADMIN gets 403, unauthenticated gets 401
                         .requestMatchers("/api/cart", "/api/cart/**").hasRole("STUDENT")
                         // Orders & Checkout — authenticated STUDENT only; ADMIN gets 403, unauthenticated gets 401
                         .requestMatchers("/api/orders", "/api/orders/**").hasRole("STUDENT")
+                        // Student videos & protected playback — authenticated STUDENT only; ADMIN gets 403, unauthenticated gets 401
+                        .requestMatchers("/api/my", "/api/my/**").hasRole("STUDENT")
+                        // Payments — PayHere webhook is public; create is STUDENT only; detail lookup is authenticated
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/payments/create").hasRole("STUDENT")
+                        .requestMatchers("/api/payments", "/api/payments/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex

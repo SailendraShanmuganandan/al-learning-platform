@@ -18,6 +18,7 @@ export interface ProductSummaryResponse {
   stockQuantity: number | null;
   pageCount: number | null;
   durationSeconds: number | null;
+  hasAttachmentPdf?: boolean;
   chapterCount: number;
   createdAt: string;
   updatedAt: string;
@@ -35,9 +36,12 @@ export interface ProductDetailResponse {
   chapterIds: number[];
   pageCount: number | null;
   stockQuantity: number | null;
-  videoUrl: string | null;
+  providerVideoId: string | null;
   durationSeconds: number | null;
   videoDescription: string | null;
+  hasAttachmentPdf?: boolean;
+  attachmentPdfName?: string | null;
+  attachmentPdfSize?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,7 +65,7 @@ export interface ProductCreatePayload {
   chapterIds?: number[];
   pageCount?: number | null;
   stockQuantity?: number | null;
-  videoUrl?: string | null;
+  providerVideoId?: string | null;
   durationSeconds?: number | null;
   videoDescription?: string | null;
 }
@@ -74,7 +78,7 @@ export interface ProductUpdatePayload {
   chapterIds?: number[];
   pageCount?: number | null;
   stockQuantity?: number | null;
-  videoUrl?: string | null;
+  providerVideoId?: string | null;
   durationSeconds?: number | null;
   videoDescription?: string | null;
 }
@@ -160,6 +164,34 @@ export async function setAdminProductStatus(
   });
 }
 
+/**
+ * POST /api/admin/products/{id}/attachment-pdf
+ * Uploads a supplementary lecture notes PDF for a video course.
+ */
+export async function uploadAdminProductAttachmentPdf(
+  id: number,
+  file: File
+): Promise<ProductDetailResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiFetch<ProductDetailResponse>(`/api/admin/products/${id}/attachment-pdf`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
+ * DELETE /api/admin/products/{id}/attachment-pdf
+ * Removes the attached lecture notes PDF from a video course.
+ */
+export async function deleteAdminProductAttachmentPdf(
+  id: number
+): Promise<ProductDetailResponse> {
+  return apiFetch<ProductDetailResponse>(`/api/admin/products/${id}/attachment-pdf`, {
+    method: 'DELETE',
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Public Types (separate from admin DTOs — security requirements)
 // ---------------------------------------------------------------------------
@@ -186,6 +218,7 @@ export interface PublicProductSummaryResponse {
   inStock: boolean | null;
   // Video-specific
   durationSeconds: number | null;
+  hasAttachmentPdf?: boolean;
   chapterCount: number;
 }
 
@@ -207,6 +240,9 @@ export interface PublicProductDetailResponse {
   // Video-specific
   durationSeconds: number | null;
   videoDescription: string | null;
+  hasAttachmentPdf?: boolean;
+  attachmentPdfName?: string | null;
+  attachmentPdfSize?: number | null;
 }
 
 export interface PublicProductFilterParams {
@@ -288,4 +324,17 @@ export async function getChapterProducts(
   chapterId: number
 ): Promise<PublicProductSummaryResponse[]> {
   return publicFetch<PublicProductSummaryResponse[]>(`/api/chapters/${chapterId}/products`);
+}
+
+/**
+ * GET /api/admin/products/{productId}/playback
+ * Returns signed embed URL for admin preview playback.
+ */
+export async function getAdminProductPlayback(
+  productId: number
+): Promise<{ embedUrl: string; expiresAt: string }> {
+  return apiFetch<{ embedUrl: string; expiresAt: string }>(
+    `/api/admin/products/${productId}/playback`,
+    { method: 'GET' }
+  );
 }

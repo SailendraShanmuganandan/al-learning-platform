@@ -1,24 +1,19 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { Link } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 import {
-  ShoppingCart,
   Trash2,
   AlertTriangle,
   ArrowRight,
-  BookOpen,
-  ShoppingBag,
-  User,
-  MapPin,
-  Shield,
-  LogOut,
   FileText,
   Video,
   Plus,
   Minus,
   Loader2,
   PackageX,
+  ShoppingBag,
 } from 'lucide-react';
 
 function formatLKR(amount: number): string {
@@ -30,9 +25,7 @@ function formatLKR(amount: number): string {
 }
 
 export default function CartPage() {
-  const { user, isAuthenticated, logout } = useAuth();
   const { cart, isLoading, updateQuantity, removeItem, clear, itemCount } = useCart();
-  const navigate = useNavigate();
 
   const [busyItemId, setBusyItemId] = useState<number | null>(null);
   const [clearing, setClearing] = useState(false);
@@ -81,158 +74,46 @@ export default function CartPage() {
     }
   }
 
-  function handleLogout() {
-    logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Navbar */}
-      <header className="border-b border-border bg-card px-6 py-3.5 sticky top-0 z-20 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-3">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold"
-              aria-hidden
-            >
-              AL
-            </div>
-            <span className="font-semibold text-foreground text-sm">AL Learning Platform</span>
-          </Link>
-        </div>
-
-        <nav className="flex items-center gap-2">
-          <Link
-            to="/subjects"
-            id="nav-subjects-link"
-            className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80 transition"
-          >
-            <BookOpen size={13} />
-            <span>Subjects</span>
-          </Link>
-          <Link
-            to="/products"
-            id="nav-products-link"
-            className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80 transition"
-          >
-            <ShoppingBag size={13} />
-            <span>Notes &amp; Videos</span>
-          </Link>
-
-          {isAuthenticated ? (
-            <>
-              {user?.role === 'STUDENT' && (
-                <Link
-                  to="/cart"
-                  id="nav-cart-link"
-                  className="relative flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-semibold text-primary transition"
-                >
-                  <ShoppingCart size={13} />
-                  <span>Cart</span>
-                  {itemCount > 0 && (
-                    <span
-                      id="cart-badge-count"
-                      className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold"
-                    >
-                      {itemCount}
-                    </span>
-                  )}
-                </Link>
-              )}
-
-              <Link
-                to="/dashboard"
-                id="nav-dashboard-link"
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                <span>Dashboard</span>
-              </Link>
-              <Link
-                to="/profile"
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                <User size={13} />
-                <span>Profile</span>
-              </Link>
-              <Link
-                to="/addresses"
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                <MapPin size={13} />
-                <span>Addresses</span>
-              </Link>
-              {user?.role === 'ADMIN' && (
-                <Link
-                  to="/admin/subjects"
-                  id="nav-admin-link"
-                  className="flex items-center gap-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 text-xs font-semibold hover:bg-primary/20 transition"
-                >
-                  <Shield size={13} />
-                  <span>Admin</span>
-                </Link>
-              )}
+    <PageContainer>
+      <div className="space-y-6">
+        <PageHeader
+          title="Shopping Cart"
+          description="Review your selected notes and video courses"
+          action={
+            items.length > 0 ? (
               <button
                 type="button"
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                id="clear-cart-btn"
+                onClick={() => setShowClearConfirm(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 font-medium px-3 py-1.5 rounded-lg border border-destructive/20 hover:bg-destructive/10 transition"
               >
-                <LogOut size={13} />
+                <Trash2 size={13} />
+                <span>Clear cart</span>
               </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="rounded-lg border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/register"
-                className="rounded-lg bg-primary text-primary-foreground px-3.5 py-1.5 text-xs font-semibold hover:opacity-90 transition"
-              >
-                Get Started
-              </Link>
-            </>
-          )}
-        </nav>
-      </header>
-
-      {/* Main content */}
-      <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-8">
-        <div className="flex items-center justify-between pb-6 border-b border-border">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <ShoppingCart size={24} className="text-primary" />
-              <span>Shopping Cart</span>
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Review your selected notes and video courses
-            </p>
-          </div>
-
-          {items.length > 0 && (
-            <button
-              type="button"
-              id="clear-cart-btn"
-              onClick={() => setShowClearConfirm(true)}
-              className="inline-flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 font-medium px-3 py-1.5 rounded-lg border border-destructive/20 hover:bg-destructive/10 transition"
-            >
-              <Trash2 size={13} />
-              <span>Clear cart</span>
-            </button>
-          )}
-        </div>
+            ) : undefined
+          }
+        />
 
         {/* Global error banner */}
         {errorMessage && (
           <div
             id="cart-error-banner"
-            className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2"
+            className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center justify-between gap-2"
           >
-            <AlertTriangle size={16} />
-            <span>{errorMessage}</span>
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+            {(errorMessage.toLowerCase().includes('already own') || errorMessage.includes('VIDEO_ALREADY_OWNED')) && (
+              <Link
+                to="/my-videos"
+                id="watch-it-now-cart-link"
+                className="underline font-semibold hover:opacity-80 shrink-0 text-xs"
+              >
+                Watch it now
+              </Link>
+            )}
           </div>
         )}
 
@@ -299,11 +180,10 @@ export default function CartPage() {
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                              isVideo
+                            className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${isVideo
                                 ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
                                 : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                            }`}
+                              }`}
                           >
                             {isVideo ? <Video size={10} /> : <FileText size={10} />}
                             {isVideo ? 'Video Course' : 'Physical Note'}
@@ -456,24 +336,20 @@ export default function CartPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    disabled
+                  <Link
+                    to="/checkout"
                     id="checkout-btn"
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground py-3 text-sm font-semibold opacity-60 cursor-not-allowed transition shadow-sm"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground py-3 text-sm font-semibold hover:opacity-90 transition shadow-sm"
                   >
                     <span>Proceed to Checkout</span>
                     <ArrowRight size={14} />
-                  </button>
-                  <p className="text-[11px] text-center text-muted-foreground">
-                    Checkout &amp; payments coming soon in the next update
-                  </p>
+                  </Link>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </main>
+      </div>
 
       {/* Clear Cart Confirmation Modal */}
       {showClearConfirm && (
@@ -510,6 +386,6 @@ export default function CartPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

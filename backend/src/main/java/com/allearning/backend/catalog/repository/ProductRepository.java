@@ -28,4 +28,8 @@ public interface ProductRepository extends JpaRepository<Product, Long>, JpaSpec
     List<Product> findByChapterIdInAndStatus(
             @Param("chapterIds") Collection<Long> chapterIds,
             @Param("status") ProductStatus status);
+
+    long countByStatus(ProductStatus status);
+
+    long countByStatusAndProductType(ProductStatus status, com.allearning.backend.catalog.entity.ProductType productType);
 }

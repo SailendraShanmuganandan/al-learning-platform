@@ -65,6 +65,9 @@ public class Order {
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;
 
+    @Column(name = "tracking_note", length = 500)
+    private String trackingNote;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -225,6 +228,14 @@ public class Order {
 
     public void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getTrackingNote() {
+        return trackingNote;
+    }
+
+    public void setTrackingNote(String trackingNote) {
+        this.trackingNote = trackingNote;
     }
 
     public List<OrderItem> getItems() {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { useCart } from '../../contexts/CartContext';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 import {
   getPublicProducts,
   type PublicProductSummaryResponse,
@@ -10,21 +10,14 @@ import {
 } from '../../api/productApi';
 import { getPublicSubjects, type SubjectResponse } from '../../api/subjectApi';
 import {
-  BookOpen,
   Video,
   Search,
   ChevronLeft,
   ChevronRight,
-  Shield,
-  User,
-  LogOut,
-  MapPin,
   Loader2,
   AlertCircle,
-  ShoppingBag,
   FileText,
   Package,
-  ShoppingCart,
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -106,6 +99,11 @@ function ProductCard({ product }: { product: PublicProductSummaryResponse }) {
           {isVideo && product.durationSeconds && (
             <span>{formatDuration(product.durationSeconds)}</span>
           )}
+          {isVideo && product.hasAttachmentPdf && (
+            <span className="inline-flex items-center gap-1 text-primary font-medium">
+              <FileText size={10} /> PDF Notes
+            </span>
+          )}
           {product.chapterCount > 0 && (
             <span className="ml-auto">{product.chapterCount} chapter{product.chapterCount !== 1 ? 's' : ''}</span>
           )}
@@ -129,8 +127,6 @@ function ProductCard({ product }: { product: PublicProductSummaryResponse }) {
 // ─── Main page ───────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-  const { user, isAuthenticated, logout } = useAuth();
-  const { itemCount } = useCart();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Filter state — sourced from URL
@@ -201,92 +197,12 @@ export default function ProductsPage() {
   const currentPage = pageParam;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Navbar */}
-      <header className="border-b border-border bg-card px-6 py-3.5 sticky top-0 z-20 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold" aria-hidden>
-              AL
-            </div>
-            <span className="font-semibold text-foreground text-sm">AL Learning Platform</span>
-          </Link>
-        </div>
-
-        <nav className="flex items-center gap-2">
-          <Link
-            to="/subjects"
-            id="nav-subjects-link"
-            className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80 transition"
-          >
-            <BookOpen size={13} />
-            <span>Subjects</span>
-          </Link>
-          <Link
-            to="/products"
-            id="nav-products-link"
-            className="flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-semibold text-primary transition"
-          >
-            <ShoppingBag size={13} />
-            <span>Notes &amp; Videos</span>
-          </Link>
-
-          {isAuthenticated ? (
-            <>
-              {user?.role === 'STUDENT' && (
-                <Link
-                  to="/cart"
-                  id="nav-cart-link"
-                  className="relative flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-                >
-                  <ShoppingCart size={13} />
-                  <span>Cart</span>
-                  {itemCount > 0 && (
-                    <span
-                      id="cart-badge-count"
-                      className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold"
-                    >
-                      {itemCount}
-                    </span>
-                  )}
-                </Link>
-              )}
-              <Link to="/dashboard" id="nav-dashboard-link" className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">
-                <span>Dashboard</span>
-              </Link>
-              <Link to="/profile" className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">
-                <User size={13} />
-                <span>Profile</span>
-              </Link>
-              <Link to="/addresses" className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">
-                <MapPin size={13} />
-                <span>Addresses</span>
-              </Link>
-              {user?.role === 'ADMIN' && (
-                <Link to="/admin/subjects" id="nav-admin-link" className="flex items-center gap-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 text-xs font-semibold hover:bg-primary/20 transition">
-                  <Shield size={13} />
-                  <span>Admin</span>
-                </Link>
-              )}
-              <button type="button" onClick={logout} className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition">
-                <LogOut size={13} />
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="rounded-lg border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">Sign In</Link>
-              <Link to="/register" className="rounded-lg bg-primary text-primary-foreground px-3.5 py-1.5 text-xs font-semibold hover:opacity-90 transition">Get Started</Link>
-            </>
-          )}
-        </nav>
-      </header>
-
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
-        {/* Page header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Notes &amp; Videos</h1>
-          <p className="text-sm text-muted-foreground mt-1">Browse study notes and video courses for A/L subjects</p>
-        </div>
+    <PageContainer>
+      <div className="space-y-8">
+        <PageHeader
+          title="Notes & Videos"
+          description="Browse study notes and video courses for A/L subjects"
+        />
 
         {/* Filters bar */}
         <div className="flex flex-wrap gap-3 mb-6 items-center">
@@ -439,11 +355,7 @@ export default function ProductsPage() {
             </button>
           </div>
         )}
-      </main>
-
-      <footer className="border-t border-border bg-card/60 px-6 py-6 text-center text-xs text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AL Learning Platform. Built for Advanced Level students.</p>
-      </footer>
-    </div>
+      </div>
+    </PageContainer>
   );
 }

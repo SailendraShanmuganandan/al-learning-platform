@@ -86,4 +86,47 @@ public class AdminProductController {
     ) {
         return ResponseEntity.ok(catalogService.updateProductStatus(id, request.status()));
     }
+
+    /**
+     * GET /api/admin/products/{id}/playback
+     * Returns a signed embed URL for admin playback preview prior to publishing.
+     */
+    @GetMapping("/{id}/playback")
+    public ResponseEntity<AdminPlaybackResponse> getPlaybackPreview(@PathVariable Long id) {
+        return ResponseEntity.ok(catalogService.getAdminPlayback(id));
+    }
+
+    /**
+     * POST /api/admin/products/{id}/attachment-pdf
+     * Uploads and attaches a PDF file to a VIDEO product.
+     */
+    @PostMapping(value = "/{id}/attachment-pdf", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ProductDetailResponse> uploadAttachmentPdf(
+            @PathVariable Long id,
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file
+    ) {
+        return ResponseEntity.ok(catalogService.uploadVideoAttachmentPdf(id, file));
+    }
+
+    /**
+     * DELETE /api/admin/products/{id}/attachment-pdf
+     * Removes the attached PDF file from a VIDEO product.
+     */
+    @DeleteMapping("/{id}/attachment-pdf")
+    public ResponseEntity<ProductDetailResponse> deleteAttachmentPdf(@PathVariable Long id) {
+        return ResponseEntity.ok(catalogService.deleteVideoAttachmentPdf(id));
+    }
+
+    /**
+     * GET /api/admin/products/{id}/attachment-pdf
+     * Admin preview download of the attached PDF.
+     */
+    @GetMapping("/{id}/attachment-pdf")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadAttachmentPdf(@PathVariable Long id) {
+        var res = catalogService.getVideoAttachmentPdfResource(id);
+        return ResponseEntity.ok()
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + res.filename() + "\"")
+                .body(res.resource());
+    }
 }

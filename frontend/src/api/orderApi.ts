@@ -32,6 +32,13 @@ export interface Order {
   shipDistrict?: string | null;
   shipPostalCode?: string | null;
   items: OrderItem[];
+  latestPaymentStatus?: string | null;
+  trackingNote?: string | null;
+}
+
+export interface PaymentCreateResponse {
+  checkoutUrl: string;
+  fields: Record<string, string>;
 }
 
 export interface PageResponse<T> {
@@ -78,6 +85,8 @@ export function normalizeOrder(raw: any): Order {
       unitPrice: typeof it.unitPrice === 'number' ? it.unitPrice : parseFloat(it.unit_price ?? it.unitPrice ?? '0'),
       subtotal: typeof it.subtotal === 'number' ? it.subtotal : parseFloat(it.subtotal ?? '0'),
     })),
+    latestPaymentStatus: raw.latestPaymentStatus ?? raw.latest_payment_status ?? null,
+    trackingNote: raw.trackingNote ?? raw.tracking_note ?? null,
   };
 }
 
@@ -107,4 +116,16 @@ export async function getMyOrders(page = 0, size = 10): Promise<PageResponse<Ord
 export async function getOrder(orderId: number): Promise<Order> {
   const raw = await apiFetch<any>(`/api/orders/${orderId}`);
   return normalizeOrder(raw);
+}
+
+/** POST /api/payments/create */
+export async function createPayment(orderId: number): Promise<PaymentCreateResponse> {
+  const raw = await apiFetch<any>('/api/payments/create', {
+    method: 'POST',
+    body: JSON.stringify({ orderId }),
+  });
+  return {
+    checkoutUrl: raw.checkoutUrl ?? raw.checkout_url,
+    fields: raw.fields || {},
+  };
 }

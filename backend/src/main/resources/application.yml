@@ -1,0 +1,27 @@
+# Learning platform YAML configuration reference
+app:
+  learning:
+    attempt-question-count: 10
+    min-eligible-questions: 5
+    assessment-questions-per-chapter: 2
+    assessment-max-questions: 60
+    weak-threshold: 0.50
+    strong-threshold: 0.80
+    accuracy-window: 20
+    min-answers-chapter: 5
+    min-answers-topic: 3
+    trend-min-answers: 20
+    trend-delta-points: 10
+    report-threshold: 3
+    low-correct-rate-min-answers: 20
+    low-correct-rate-percent: 20
+    study-session-grace-minutes: 5
+    study-session-question-counts:
+      10: 5
+      20: 10
+      30: 15
+      60: 30
+    recommendation-very-weak-accuracy: 0.40
+    recommendation-min-mistakes-for-practice: 3
+    admin-analytics-max-students: 5000
+

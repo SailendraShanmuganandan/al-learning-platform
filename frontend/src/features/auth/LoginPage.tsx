@@ -4,17 +4,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LoginForm } from './LoginForm';
 
 export default function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   // Where to go after login — the protected page or returnUrl they originally tried to visit
   const searchParams = new URLSearchParams(location.search);
   const returnUrl = searchParams.get('returnUrl');
+  const defaultDestination = user?.role === 'ADMIN' ? '/admin' : '/dashboard';
   const from: string =
     returnUrl ||
     (location.state as { from?: { pathname: string } })?.from?.pathname ||
-    '/dashboard';
+    defaultDestination;
 
   // If already authenticated, redirect out of the login page immediately
   useEffect(() => {
@@ -24,48 +25,22 @@ export default function LoginPage() {
   }, [isAuthenticated, navigate, from]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
-      {/* Background decorative gradient */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-      >
-        <div className="absolute -top-40 -right-40 h-[600px] w-[600px] rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 h-[500px] w-[500px] rounded-full bg-primary/5 blur-3xl" />
+    <div>
+      <div className="mb-6 text-center">
+        <h2 className="text-xl font-bold tracking-tight text-foreground">Sign in to your account</h2>
+        <p className="text-xs text-muted-foreground mt-1">Enter your credentials to continue</p>
       </div>
 
-      <div className="w-full max-w-md">
-        {/* Wordmark */}
-        <div className="mb-8 flex flex-col items-center gap-2 text-center">
-          <div
-            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-xl font-bold shadow-lg"
-            aria-hidden
-          >
-            AL
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            AL Learning Platform
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Sign in to continue to your account
-          </p>
-        </div>
+      <LoginForm onSubmit={login} />
 
-        {/* Card */}
-        <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
-          <LoginForm onSubmit={login} />
-        </div>
-
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link
-            to="/register"
-            id="login-register-link"
-            className="font-medium text-foreground underline-offset-4 hover:underline"
-          >
-            Create one
-          </Link>
-        </p>
+      <div className="mt-6 text-center text-xs text-muted-foreground">
+        Don&apos;t have an account?{' '}
+        <Link
+          to="/register"
+          className="font-semibold text-primary hover:underline"
+        >
+          Register here
+        </Link>
       </div>
     </div>
   );

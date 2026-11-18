@@ -114,4 +114,44 @@ public interface CatalogService {
      * @param quantity  quantity to release
      */
     void releaseStock(Long productId, int quantity);
+
+    /**
+     * Internal method returning video facts for a product ID:
+     * name, slug, thumbnail, duration, description, status, and provider_video_id.
+     * Used by commerce module (ownership / My Videos) without exposing public DTOs.
+     */
+    Optional<VideoProductFacts> getVideoProductFacts(Long productId);
+
+    /**
+     * Internal method returning video facts for multiple product IDs.
+     */
+    java.util.Map<Long, VideoProductFacts> getVideoProductFacts(java.util.Collection<Long> productIds);
+
+    /**
+     * Generates a signed embed URL for admin video playback preview.
+     * Throws 404 if product not found or not a VIDEO.
+     */
+    AdminPlaybackResponse getAdminPlayback(Long productId);
+
+    /**
+     * Uploads and attaches a PDF file to a VIDEO product.
+     * Throws 400 if product is not VIDEO or file is invalid, 404 if not found.
+     */
+    ProductDetailResponse uploadVideoAttachmentPdf(Long productId, org.springframework.web.multipart.MultipartFile file);
+
+    /**
+     * Removes the attached PDF file from a VIDEO product.
+     */
+    ProductDetailResponse deleteVideoAttachmentPdf(Long productId);
+
+    /**
+     * Loads the attached PDF file as a Resource for downloading.
+     */
+    VideoPdfResource getVideoAttachmentPdfResource(Long productId);
+
+    record VideoPdfResource(
+            org.springframework.core.io.Resource resource,
+            String filename,
+            long fileSize
+    ) {}
 }

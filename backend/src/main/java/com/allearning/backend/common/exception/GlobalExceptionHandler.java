@@ -27,6 +27,61 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // --- Learning exceptions (409, 400) ---
+
+    @ExceptionHandler(com.allearning.backend.learning.exception.GradingValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleGradingValidation(
+            com.allearning.backend.learning.exception.GradingValidationException ex) {
+
+        Map<String, Object> body = errorBody(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        if (ex.getDetails() != null) {
+            body.putAll(ex.getDetails());
+        }
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(body);
+    }
+
+    @ExceptionHandler(com.allearning.backend.learning.exception.NotAnsweredByUserException.class)
+    public ResponseEntity<Map<String, Object>> handleNotAnsweredByUser(
+            com.allearning.backend.learning.exception.NotAnsweredByUserException ex) {
+
+        Map<String, Object> body = errorBody(HttpStatus.FORBIDDEN, ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(body);
+    }
+
+    @ExceptionHandler(com.allearning.backend.learning.exception.LearningConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleLearningConflict(
+            com.allearning.backend.learning.exception.LearningConflictException ex) {
+
+        Map<String, Object> body = errorBody(HttpStatus.CONFLICT, ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(body);
+    }
+
+    @ExceptionHandler(com.allearning.backend.learning.exception.NotEnoughQuestionsException.class)
+    public ResponseEntity<Map<String, Object>> handleNotEnoughQuestions(
+            com.allearning.backend.learning.exception.NotEnoughQuestionsException ex) {
+
+        Map<String, Object> body = errorBody(HttpStatus.CONFLICT, "NOT_ENOUGH_QUESTIONS", ex.getMessage());
+        body.put("code", "NOT_ENOUGH_QUESTIONS");
+        body.put("requested", ex.getRequested());
+        body.put("found", ex.getFound());
+        if (ex.getChapterId() != null) {
+            body.put("chapterId", ex.getChapterId());
+        }
+        body.put("reason", ex.getReason());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(body);
+    }
+
     // --- Validation errors (400 / 422) ---
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -72,11 +127,66 @@ public class GlobalExceptionHandler {
                 .body(body);
     }
 
+    // --- Class registration conflict (409) ---
+
+    @ExceptionHandler(com.allearning.backend.classes.exception.ClassRegistrationConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleClassRegistrationConflict(
+            com.allearning.backend.classes.exception.ClassRegistrationConflictException ex) {
+
+        Map<String, Object> body = errorBody(HttpStatus.CONFLICT, ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        if (ex.getDetails() != null) {
+            body.putAll(ex.getDetails());
+        }
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(body);
+    }
+
+    // --- Communication exceptions (409, 429) ---
+
+    @ExceptionHandler(com.allearning.backend.communication.exception.InvalidTransitionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidTransition(
+            com.allearning.backend.communication.exception.InvalidTransitionException ex) {
+
+        Map<String, Object> body = errorBody(HttpStatus.CONFLICT, ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(body);
+    }
+
+    @ExceptionHandler(com.allearning.backend.communication.exception.RateLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(
+            com.allearning.backend.communication.exception.RateLimitExceededException ex) {
+
+        Map<String, Object> body = errorBody(HttpStatus.TOO_MANY_REQUESTS, ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(org.springframework.http.HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(body);
+    }
+
     // --- Order / Checkout exceptions (400, 404, 409) ---
 
     @ExceptionHandler(com.allearning.backend.commerce.exception.OrderException.class)
     public ResponseEntity<Map<String, Object>> handleOrderException(
             com.allearning.backend.commerce.exception.OrderException ex) {
+
+        Map<String, Object> body = errorBody(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
+        body.put("code", ex.getErrorCode());
+        if (ex.getDetails() != null) {
+            body.putAll(ex.getDetails());
+        }
+        return ResponseEntity
+                .status(ex.getStatus())
+                .body(body);
+    }
+
+    @ExceptionHandler(com.allearning.backend.commerce.exception.PaymentException.class)
+    public ResponseEntity<Map<String, Object>> handlePaymentException(
+            com.allearning.backend.commerce.exception.PaymentException ex) {
 
         Map<String, Object> body = errorBody(ex.getStatus(), ex.getErrorCode(), ex.getMessage());
         body.put("code", ex.getErrorCode());

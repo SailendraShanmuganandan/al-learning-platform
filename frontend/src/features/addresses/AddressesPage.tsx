@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { z } from 'zod/v4';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   MapPin, Plus, Trash2, Edit3, Star, Loader2, X,
-  CheckCircle2, AlertTriangle, ArrowLeft, User as UserIcon,
+  CheckCircle2, AlertTriangle,
 } from 'lucide-react';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 import {
   listAddresses,
   createAddress,
@@ -203,35 +204,7 @@ export default function AddressesPage() {
   // -------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold"
-            aria-hidden
-          >
-            AL
-          </div>
-          <span className="font-semibold text-foreground">AL Learning Platform</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ArrowLeft size={13} /> Dashboard
-          </Link>
-          <Link
-            to="/profile"
-            id="nav-profile"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <UserIcon size={13} /> Profile
-          </Link>
-        </div>
-      </header>
-
+    <PageContainer>
       {/* Toast */}
       {toast && (
         <div
@@ -244,22 +217,23 @@ export default function AddressesPage() {
         </div>
       )}
 
-      <main className="max-w-3xl mx-auto px-6 py-10">
-        {/* Page header */}
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Delivery Addresses</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage your saved delivery addresses.</p>
-          </div>
+      {/* Page header */}
+      <PageHeader
+        title="Delivery Addresses"
+        description="Manage your saved delivery addresses."
+        action={
           <button
             id="add-address-btn"
             type="button"
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow hover:opacity-90 transition"
+            className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground shadow hover:opacity-90 transition"
           >
             <Plus size={15} /> Add Address
           </button>
-        </div>
+        }
+      />
+
+      <div className="mt-8 space-y-6">
 
         {/* Loading */}
         {loading && (
@@ -363,7 +337,7 @@ export default function AddressesPage() {
             ))}
           </div>
         )}
-      </main>
+      </div>
 
       {/* ===== Add / Edit Form Modal ===== */}
       {formOpen && (
@@ -507,7 +481,7 @@ export default function AddressesPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

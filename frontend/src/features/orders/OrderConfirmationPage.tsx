@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getOrder, type Order } from '../../api/orderApi';
+import { getOrder, createPayment, type Order } from '../../api/orderApi';
 import {
   CheckCircle2,
   Clock,
@@ -11,21 +11,29 @@ import {
   Video,
   CreditCard,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
 
 export default function OrderConfirmationPage() {
-  const { id } = useParams<{ id: string }>();
+  const { orderId } = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [isExpired, setIsExpired] = useState(false);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) return;
-    loadOrder(parseInt(id, 10));
-  }, [id]);
+    const parsedOrderId = Number(orderId);
+    if (!orderId || !Number.isSafeInteger(parsedOrderId) || parsedOrderId <= 0) {
+      setError('Invalid order link.');
+      setLoading(false);
+      return;
+    }
+    loadOrder(parsedOrderId);
+  }, [orderId]);
 
   async function loadOrder(orderId: number) {
     setLoading(true);
@@ -36,6 +44,37 @@ export default function OrderConfirmationPage() {
       setError(err.message || 'Failed to load order confirmation.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handlePayNow() {
+    if (!order || isSubmittingPayment || isExpired || order.paymentStatus !== 'PENDING') {
+      return;
+    }
+
+    setIsSubmittingPayment(true);
+    setPaymentError(null);
+
+    try {
+      const paymentData = await createPayment(order.orderId);
+
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = paymentData.checkoutUrl;
+
+      for (const [key, value] of Object.entries(paymentData.fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+    } catch (err: any) {
+      setPaymentError(err.message || 'Failed to initiate payment.');
+      setIsSubmittingPayment(false);
     }
   }
 
@@ -95,6 +134,23 @@ export default function OrderConfirmationPage() {
     );
   }
 
+  const isFailedPayment = order.latestPaymentStatus === 'FAILED' || order.paymentStatus === 'FAILED';
+  const isOrderExpired = order.paymentStatus === 'EXPIRED' || (order.paymentStatus === 'PENDING' && isExpired);
+  const paymentStatusLabel = order.paymentStatus === 'PAID'
+    ? 'Paid'
+    : isOrderExpired
+      ? 'Expired'
+      : isFailedPayment
+        ? 'Payment failed (retry available)'
+        : 'Awaiting payment';
+  const paymentStatusClass = order.paymentStatus === 'PAID'
+    ? 'bg-emerald-500'
+    : isOrderExpired
+      ? 'bg-muted-foreground'
+      : isFailedPayment
+        ? 'bg-destructive'
+        : 'bg-amber-500';
+
   return (
     <div className="min-h-screen bg-background flex flex-col py-10 px-4 sm:px-6">
       <div className="max-w-3xl w-full mx-auto space-y-8">
@@ -113,9 +169,9 @@ export default function OrderConfirmationPage() {
           {/* Status and countdown banner */}
           <div className="inline-flex flex-col sm:flex-row items-center gap-2 rounded-2xl border border-border bg-card px-5 py-3 shadow-sm mt-3">
             <div className="flex items-center gap-2">
-              <span className="flex h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+              <span className={`flex h-2.5 w-2.5 rounded-full ${paymentStatusClass}`} />
               <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-                Status: Awaiting payment
+                Status: {paymentStatusLabel}
               </span>
             </div>
             <span className="hidden sm:inline text-muted-foreground">&bull;</span>
@@ -126,26 +182,46 @@ export default function OrderConfirmationPage() {
           </div>
         </div>
 
-        {/* Payment CTA Card (Disabled / Coming Soon) */}
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="space-y-1 text-center sm:text-left">
-            <div className="flex items-center justify-center sm:justify-start gap-2">
-              <CreditCard size={18} className="text-primary" />
-              <h3 className="text-sm font-bold text-foreground">Online Payment Gateway</h3>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Credit card, debit card &amp; online bank transfers will be enabled in the upcoming payment slice.
-            </p>
+        {paymentError && (
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive flex items-center gap-3 text-xs">
+            <AlertCircle size={16} className="shrink-0" />
+            <span>{paymentError}</span>
           </div>
+        )}
 
-          <button
-            type="button"
-            disabled
-            className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-6 py-3 text-xs font-bold opacity-50 cursor-not-allowed shadow-sm"
-          >
-            <span>Pay Now (Coming Soon)</span>
-          </button>
-        </div>
+        {/* Payment CTA Card */}
+        {order.paymentStatus === 'PENDING' && !isExpired && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <CreditCard size={18} className="text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Pay with PayHere</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Pay securely via Credit Card, Debit Card or LankaQR.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePayNow}
+              disabled={isSubmittingPayment || isExpired}
+              className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground px-6 py-3 text-xs font-bold hover:bg-primary/90 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmittingPayment ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Redirecting to PayHere...</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard size={14} />
+                  <span>Pay Now</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Order Details card */}
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">

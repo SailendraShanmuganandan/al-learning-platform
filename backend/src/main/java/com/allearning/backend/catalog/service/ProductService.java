@@ -7,6 +7,9 @@ import com.allearning.backend.catalog.entity.*;
 import com.allearning.backend.catalog.repository.NoteRepository;
 import com.allearning.backend.catalog.repository.ProductRepository;
 import jakarta.persistence.criteria.Predicate;
+import com.allearning.backend.integration.video.SignedEmbedResult;
+import com.allearning.backend.integration.video.VideoPlaybackProvider;
+import com.allearning.backend.integration.video.VideoProviderInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -21,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Service
 @Transactional
@@ -28,16 +32,32 @@ public class ProductService implements CatalogService {
 
     private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    );
+
     private final ProductRepository productRepository;
     private final NoteRepository noteRepository;
     private final ChapterValidationService chapterValidationService;
+    private final VideoPlaybackProvider videoPlaybackProvider;
+    private final VideoAttachmentStorageService videoAttachmentStorageService;
 
     public ProductService(ProductRepository productRepository,
                           NoteRepository noteRepository,
-                          ChapterValidationService chapterValidationService) {
+                          ChapterValidationService chapterValidationService,
+                          VideoPlaybackProvider videoPlaybackProvider,
+                          VideoAttachmentStorageService videoAttachmentStorageService) {
         this.productRepository = productRepository;
         this.noteRepository = noteRepository;
         this.chapterValidationService = chapterValidationService;
+        this.videoPlaybackProvider = videoPlaybackProvider;
+        this.videoAttachmentStorageService = videoAttachmentStorageService;
+    }
+
+    private void validateUuid(String value) {
+        if (value == null || !UUID_PATTERN.matcher(value.trim()).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bunny Video ID must be a valid UUID/GUID");
+        }
     }
 
     @Override
@@ -92,9 +112,9 @@ public class ProductService implements CatalogService {
 
         // Validate type-specific constraints & build subtype
         if (request.productType() == ProductType.PHYSICAL_NOTE) {
-            if (request.videoUrl() != null || request.durationSeconds() != null || request.videoDescription() != null) {
+            if (request.providerVideoId() != null || request.durationSeconds() != null || request.videoDescription() != null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Video fields (videoUrl, durationSeconds, videoDescription) are not allowed for PHYSICAL_NOTE products");
+                        "Video fields (providerVideoId, durationSeconds, videoDescription) are not allowed for PHYSICAL_NOTE products");
             }
             if (request.pageCount() == null || request.pageCount() <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -114,16 +134,27 @@ public class ProductService implements CatalogService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Note fields (pageCount, stockQuantity) are not allowed for VIDEO products");
             }
-            if (request.videoUrl() == null || request.videoUrl().trim().isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Video URL is required for VIDEO products");
-            }
-            if (request.durationSeconds() == null || request.durationSeconds() <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Duration in seconds is required and must be greater than 0 for VIDEO products");
+
+            String providerVideoId = request.providerVideoId() != null && !request.providerVideoId().isBlank()
+                    ? request.providerVideoId().trim()
+                    : null;
+            Integer duration = request.durationSeconds();
+
+            if (providerVideoId != null) {
+                validateUuid(providerVideoId);
+                Optional<VideoProviderInfo> infoOpt = videoPlaybackProvider.getVideoInfo(providerVideoId);
+                if (infoOpt.isPresent()) {
+                    VideoProviderInfo info = infoOpt.get();
+                    if (!info.exists()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VIDEO_NOT_FOUND_IN_PROVIDER");
+                    }
+                    if ((duration == null || duration <= 0) && info.durationSeconds() != null && info.durationSeconds() > 0) {
+                        duration = info.durationSeconds();
+                    }
+                }
             }
 
-            Video video = new Video(product, request.videoUrl().trim(), request.durationSeconds(), request.videoDescription());
+            Video video = new Video(product, providerVideoId, duration, request.videoDescription());
             product.setVideo(video);
             product.setNote(null);
         }
@@ -174,9 +205,9 @@ public class ProductService implements CatalogService {
 
         // Validate type-specific updates and reject mismatched fields
         if (product.getProductType() == ProductType.PHYSICAL_NOTE) {
-            if (request.videoUrl() != null || request.durationSeconds() != null || request.videoDescription() != null) {
+            if (request.providerVideoId() != null || request.durationSeconds() != null || request.videoDescription() != null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Video fields (videoUrl, durationSeconds, videoDescription) are not allowed for PHYSICAL_NOTE products");
+                        "Video fields (providerVideoId, durationSeconds, videoDescription) are not allowed for PHYSICAL_NOTE products");
             }
             Note note = product.getNote();
             if (note == null) {
@@ -208,11 +239,26 @@ public class ProductService implements CatalogService {
                 video.setProduct(product);
                 product.setVideo(video);
             }
-            if (request.videoUrl() != null) {
-                if (request.videoUrl().trim().isEmpty()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Video URL cannot be blank");
+            if (request.providerVideoId() != null) {
+                String providerVideoId = request.providerVideoId().trim();
+                if (providerVideoId.isEmpty()) {
+                    video.setProviderVideoId(null);
+                } else {
+                    validateUuid(providerVideoId);
+                    video.setProviderVideoId(providerVideoId);
+                    Optional<VideoProviderInfo> infoOpt = videoPlaybackProvider.getVideoInfo(providerVideoId);
+                    if (infoOpt.isPresent()) {
+                        VideoProviderInfo info = infoOpt.get();
+                        if (!info.exists()) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VIDEO_NOT_FOUND_IN_PROVIDER");
+                        }
+                        if ((request.durationSeconds() == null || request.durationSeconds() <= 0)
+                                && (video.getDurationSeconds() == null || video.getDurationSeconds() <= 0)
+                                && info.durationSeconds() != null && info.durationSeconds() > 0) {
+                            video.setDurationSeconds(info.durationSeconds());
+                        }
+                    }
                 }
-                video.setVideoUrl(request.videoUrl().trim());
             }
             if (request.durationSeconds() != null) {
                 if (request.durationSeconds() <= 0) {
@@ -387,11 +433,23 @@ public class ProductService implements CatalogService {
             }
         } else if (product.getProductType() == ProductType.VIDEO) {
             Video video = product.getVideo();
-            if (video == null || video.getVideoUrl() == null || video.getVideoUrl().trim().isEmpty()) {
-                missing.add("Video URL is required");
+            if (video == null || video.getProviderVideoId() == null || video.getProviderVideoId().trim().isEmpty()) {
+                missing.add("Bunny Video ID is required");
             }
             if (video == null || video.getDurationSeconds() == null || video.getDurationSeconds() <= 0) {
                 missing.add("Video duration must be set and greater than 0");
+            }
+            if (video != null && video.getProviderVideoId() != null && !video.getProviderVideoId().trim().isEmpty()) {
+                Optional<VideoProviderInfo> infoOpt = videoPlaybackProvider.getVideoInfo(video.getProviderVideoId().trim());
+                if (infoOpt.isPresent()) {
+                    VideoProviderInfo info = infoOpt.get();
+                    if (!info.exists()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VIDEO_NOT_FOUND_IN_PROVIDER");
+                    }
+                    if (!info.encodingFinished()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "VIDEO_NOT_READY");
+                    }
+                }
             }
         }
 
@@ -540,5 +598,138 @@ public class ProductService implements CatalogService {
             return;
         }
         noteRepository.incrementStock(productId, quantity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AdminPlaybackResponse getAdminPlayback(Long productId) {
+        Product product = findProductOrThrow(productId);
+        if (product.getProductType() != ProductType.VIDEO || product.getVideo() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product is not a video");
+        }
+        String providerVideoId = product.getVideo().getProviderVideoId();
+        if (providerVideoId == null || providerVideoId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product does not have a Bunny Video ID configured");
+        }
+        SignedEmbedResult signed = videoPlaybackProvider.signEmbedUrl(providerVideoId, 120);
+        return new AdminPlaybackResponse(signed.embedUrl(), signed.expiresAt());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VideoProductFacts> getVideoProductFacts(Long productId) {
+        if (productId == null) {
+            return Optional.empty();
+        }
+        return productRepository.findById(productId)
+                .filter(p -> p.getProductType() == ProductType.VIDEO && p.getVideo() != null)
+                .map(p -> new VideoProductFacts(
+                        p.getProductId(),
+                        p.getName(),
+                        p.getSlug(),
+                        p.getThumbnailUrl(),
+                        p.getVideo().getDurationSeconds(),
+                        p.getVideo().getDescription(),
+                        p.getStatus(),
+                        p.getVideo().getProviderVideoId(),
+                        p.getVideo().getPdfFilePath() != null && !p.getVideo().getPdfFilePath().isBlank(),
+                        p.getVideo().getPdfOriginalFilename(),
+                        p.getVideo().getPdfFileSize()
+                ));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, VideoProductFacts> getVideoProductFacts(Collection<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Product> products = productRepository.findAllById(productIds);
+        Map<Long, VideoProductFacts> map = new HashMap<>();
+        for (Product p : products) {
+            if (p.getProductType() == ProductType.VIDEO && p.getVideo() != null) {
+                map.put(p.getProductId(), new VideoProductFacts(
+                        p.getProductId(),
+                        p.getName(),
+                        p.getSlug(),
+                        p.getThumbnailUrl(),
+                        p.getVideo().getDurationSeconds(),
+                        p.getVideo().getDescription(),
+                        p.getStatus(),
+                        p.getVideo().getProviderVideoId(),
+                        p.getVideo().getPdfFilePath() != null && !p.getVideo().getPdfFilePath().isBlank(),
+                        p.getVideo().getPdfOriginalFilename(),
+                        p.getVideo().getPdfFileSize()
+                ));
+            }
+        }
+        return map;
+    }
+
+    @Override
+    public ProductDetailResponse uploadVideoAttachmentPdf(Long productId, org.springframework.web.multipart.MultipartFile file) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found: " + productId));
+
+        if (product.getProductType() != ProductType.VIDEO || product.getVideo() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "PDF attachments can only be added to VIDEO products");
+        }
+
+        Video video = product.getVideo();
+        VideoAttachmentStorageService.StoredPdfInfo stored = videoAttachmentStorageService.storePdf(
+                productId, file, video.getPdfFilePath()
+        );
+
+        video.setPdfFilePath(stored.relativePath());
+        video.setPdfOriginalFilename(stored.originalFilename());
+        video.setPdfFileSize(stored.fileSize());
+
+        productRepository.save(product);
+        log.info("Attached PDF '{}' ({} bytes) to video product {}", stored.originalFilename(), stored.fileSize(), productId);
+        return ProductDetailResponse.from(product);
+    }
+
+    @Override
+    public ProductDetailResponse deleteVideoAttachmentPdf(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found: " + productId));
+
+        if (product.getProductType() != ProductType.VIDEO || product.getVideo() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product is not a video");
+        }
+
+        Video video = product.getVideo();
+        if (video.getPdfFilePath() != null) {
+            videoAttachmentStorageService.deleteFile(video.getPdfFilePath());
+            video.setPdfFilePath(null);
+            video.setPdfOriginalFilename(null);
+            video.setPdfFileSize(null);
+            productRepository.save(product);
+            log.info("Removed PDF attachment from video product {}", productId);
+        }
+
+        return ProductDetailResponse.from(product);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public VideoPdfResource getVideoAttachmentPdfResource(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found: " + productId));
+
+        if (product.getProductType() != ProductType.VIDEO || product.getVideo() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product is not a video");
+        }
+
+        Video video = product.getVideo();
+        if (video.getPdfFilePath() == null || video.getPdfFilePath().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No PDF attachment found for this video");
+        }
+
+        org.springframework.core.io.Resource resource = videoAttachmentStorageService.loadAsResource(video.getPdfFilePath());
+        String filename = video.getPdfOriginalFilename() != null ? video.getPdfOriginalFilename() : "lecture_notes.pdf";
+        long size = video.getPdfFileSize() != null ? video.getPdfFileSize() : 0L;
+
+        return new VideoPdfResource(resource, filename, size);
     }
 }

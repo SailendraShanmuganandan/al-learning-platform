@@ -32,11 +32,14 @@ class ProductServiceTest {
     @Mock
     private ChapterValidationService chapterValidationService;
 
+    @Mock
+    private com.allearning.backend.integration.video.VideoPlaybackProvider videoPlaybackProvider;
+
     private ProductService productService;
 
     @BeforeEach
     void setUp() {
-        productService = new ProductService(productRepository, noteRepository, chapterValidationService);
+        productService = new ProductService(productRepository, noteRepository, chapterValidationService, videoPlaybackProvider);
     }
 
     @Test
@@ -72,7 +75,7 @@ class ProductServiceTest {
         assertEquals(ProductType.PHYSICAL_NOTE, response.productType());
         assertEquals(120, response.pageCount());
         assertEquals(50, response.stockQuantity());
-        assertNull(response.videoUrl());
+        assertNull(response.providerVideoId());
         assertNull(response.durationSeconds());
         assertEquals(ProductStatus.DRAFT, response.status());
         assertEquals(2, response.chapterIds().size());
@@ -89,7 +92,7 @@ class ProductServiceTest {
                 List.of(20L),
                 null,
                 null,
-                "https://player.vimeo.com/video/12345",
+                "32d140e2-e4f4-4eec-9d53-20371e9be607",
                 7200,
                 "Comprehensive reaction mechanisms"
         );
@@ -109,7 +112,7 @@ class ProductServiceTest {
         assertEquals(ProductType.VIDEO, response.productType());
         assertNull(response.pageCount());
         assertNull(response.stockQuantity());
-        assertEquals("https://player.vimeo.com/video/12345", response.videoUrl());
+        assertEquals("32d140e2-e4f4-4eec-9d53-20371e9be607", response.providerVideoId());
         assertEquals(7200, response.durationSeconds());
         assertEquals("Comprehensive reaction mechanisms", response.videoDescription());
         assertEquals(ProductStatus.DRAFT, response.status());
@@ -126,7 +129,7 @@ class ProductServiceTest {
                 null,
                 50,
                 10,
-                "https://video.url", // forbidden on note
+                "32d140e2-e4f4-4eec-9d53-20371e9be607", // forbidden on note
                 null,
                 null
         );
@@ -148,7 +151,7 @@ class ProductServiceTest {
                 null,
                 50, // forbidden on video
                 null,
-                "https://video.url",
+                "32d140e2-e4f4-4eec-9d53-20371e9be607",
                 3600,
                 null
         );
@@ -286,7 +289,7 @@ class ProductServiceTest {
 
         ProductUpdateRequest updateReq = new ProductUpdateRequest(
                 null, null, null, null, null, null, null,
-                "https://video.url", // forbidden on note
+                "32d140e2-e4f4-4eec-9d53-20371e9be607", // forbidden on note
                 null, null, null
         );
 
@@ -470,5 +473,99 @@ class ProductServiceTest {
     void releaseStock_incrementsStock() {
         productService.releaseStock(10L, 3);
         verify(noteRepository).incrementStock(10L, 3);
+    }
+
+    @Test
+    void createVideo_invalidUuid_throwsBadRequest() {
+        ProductCreateRequest req = new ProductCreateRequest(
+                "Invalid UUID Video", "desc", ProductType.VIDEO,
+                new BigDecimal("1000.00"), null, null, null, null,
+                "not-a-valid-uuid", 3600, null
+        );
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> productService.createProduct(req));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Bunny Video ID must be a valid UUID/GUID"));
+    }
+
+    @Test
+    void publishValidation_videoMissingBunnyIdOrDuration_throwsBadRequest() {
+        Product product = new Product();
+        product.setProductId(25L);
+        product.setName("Incomplete Video");
+        product.setProductType(ProductType.VIDEO);
+        product.setPrice(new BigDecimal("100.00"));
+        product.setStatus(ProductStatus.DRAFT);
+        product.setChapterIds(new HashSet<>(List.of(1L)));
+        product.setVideo(new Video(product, null, null, null));
+
+        when(productRepository.findById(25L)).thenReturn(Optional.of(product));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> productService.updateProductStatus(25L, ProductStatus.PUBLISHED));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("Bunny Video ID is required"));
+        assertTrue(ex.getReason().contains("Video duration must be set"));
+    }
+
+    @Test
+    void publishValidation_videoNotReady_throwsBadRequest() {
+        String videoId = "32d140e2-e4f4-4eec-9d53-20371e9be607";
+        Product product = new Product();
+        product.setProductId(26L);
+        product.setName("Encoding Video");
+        product.setProductType(ProductType.VIDEO);
+        product.setPrice(new BigDecimal("100.00"));
+        product.setStatus(ProductStatus.DRAFT);
+        product.setChapterIds(new HashSet<>(List.of(1L)));
+        product.setVideo(new Video(product, videoId, 3600, null));
+
+        when(productRepository.findById(26L)).thenReturn(Optional.of(product));
+        when(videoPlaybackProvider.getVideoInfo(videoId))
+                .thenReturn(Optional.of(new com.allearning.backend.integration.video.VideoProviderInfo(true, 3600, false)));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> productService.updateProductStatus(26L, ProductStatus.PUBLISHED));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("VIDEO_NOT_READY", ex.getReason());
+    }
+
+    @Test
+    void getAdminPlayback_successAndErrorModes() {
+        String videoId = "32d140e2-e4f4-4eec-9d53-20371e9be607";
+        Product videoProduct = new Product();
+        videoProduct.setProductId(50L);
+        videoProduct.setProductType(ProductType.VIDEO);
+        videoProduct.setVideo(new Video(videoProduct, videoId, 3600, null));
+
+        Product noteProduct = new Product();
+        noteProduct.setProductId(51L);
+        noteProduct.setProductType(ProductType.PHYSICAL_NOTE);
+
+        when(productRepository.findById(50L)).thenReturn(Optional.of(videoProduct));
+        when(productRepository.findById(51L)).thenReturn(Optional.of(noteProduct));
+        when(productRepository.findById(99L)).thenReturn(Optional.empty());
+
+        when(videoPlaybackProvider.signEmbedUrl(eq(videoId), eq(120)))
+                .thenReturn(new com.allearning.backend.integration.video.SignedEmbedResult(
+                        "https://iframe.mediadelivery.net/embed/123/" + videoId + "?token=abc&expires=123",
+                        java.time.OffsetDateTime.now().plusHours(2)
+                ));
+
+        // Success
+        var playback = productService.getAdminPlayback(50L);
+        assertNotNull(playback);
+        assertTrue(playback.embedUrl().contains(videoId));
+
+        // 404 for physical note
+        ResponseStatusException noteEx = assertThrows(ResponseStatusException.class,
+                () -> productService.getAdminPlayback(51L));
+        assertEquals(HttpStatus.NOT_FOUND, noteEx.getStatusCode());
+
+        // 404 for missing
+        ResponseStatusException missingEx = assertThrows(ResponseStatusException.class,
+                () -> productService.getAdminPlayback(99L));
+        assertEquals(HttpStatus.NOT_FOUND, missingEx.getStatusCode());
     }
 }

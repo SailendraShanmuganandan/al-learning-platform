@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { z } from 'zod/v4';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   User, Mail, Phone, Shield, CheckCircle2, AlertCircle,
-  Edit3, Save, X, Loader2, MapPin, ArrowLeft,
+  Edit3, Save, X, Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { updateMyProfile, type UpdateProfilePayload } from '../../api/userApi';
 import type { ApiError } from '../../api/authApi';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 
 const schema = z.object({
   fullName: z.string().min(1, 'Full name is required').max(150, 'Max 150 characters'),
@@ -70,45 +71,16 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold"
-            aria-hidden
-          >
-            AL
-          </div>
-          <span className="font-semibold text-foreground">AL Learning Platform</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ArrowLeft size={13} /> Dashboard
-          </Link>
-          <Link
-            to="/addresses"
-            id="nav-addresses"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <MapPin size={13} /> Addresses
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-2xl mx-auto px-6 py-10">
-        {/* Page title */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">My Profile</h1>
-          <p className="text-sm text-muted-foreground mt-1">View and update your account information.</p>
-        </div>
+    <PageContainer>
+      <div className="space-y-6">
+        <PageHeader
+          title="My Profile"
+          description="View and update your account information."
+        />
 
         {/* Email verification banner */}
         {!isVerified && (
-          <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
+          <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-800">
             <AlertCircle size={16} className="shrink-0 text-amber-600" />
             <span>
               <strong>Email not verified.</strong> Please verify your email to unlock purchases and registrations.
@@ -119,7 +91,7 @@ export default function ProfilePage() {
         {saveSuccess && (
           <div
             role="alert"
-            className="mb-6 flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-800"
+            className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-xs text-green-800"
           >
             <CheckCircle2 size={16} className="shrink-0 text-green-600" />
             Profile updated successfully!
@@ -261,8 +233,8 @@ export default function ProfilePage() {
             </form>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </PageContainer>
   );
 }
 

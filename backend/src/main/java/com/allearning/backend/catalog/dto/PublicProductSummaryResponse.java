@@ -28,6 +28,7 @@ public record PublicProductSummaryResponse(
 
         // Video-specific (null for PHYSICAL_NOTE)
         Integer durationSeconds,
+        Boolean hasAttachmentPdf,
 
         int chapterCount
 ) {
@@ -41,9 +42,11 @@ public record PublicProductSummaryResponse(
         }
 
         Integer durationSeconds = null;
+        Boolean hasAttachmentPdf = false;
         if (product.getProductType() == ProductType.VIDEO) {
             Video video = product.getVideo();
             durationSeconds = (video != null) ? video.getDurationSeconds() : null;
+            hasAttachmentPdf = (video != null && video.getPdfFilePath() != null && !video.getPdfFilePath().isBlank());
         }
 
         int chapterCount = product.getChapterIds() != null ? product.getChapterIds().size() : 0;
@@ -58,6 +61,7 @@ public record PublicProductSummaryResponse(
                 pageCount,
                 inStock,
                 durationSeconds,
+                hasAttachmentPdf,
                 chapterCount
         );
     }

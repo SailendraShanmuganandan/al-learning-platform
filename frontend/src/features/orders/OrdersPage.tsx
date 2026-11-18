@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getMyOrders, type Order } from '../../api/orderApi';
-import { useAuth } from '../../contexts/AuthContext';
-import { useCart } from '../../contexts/CartContext';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 import {
   Package,
-  ShoppingBag,
-  ShoppingCart,
   ChevronRight,
   Clock,
   CheckCircle2,
@@ -16,18 +14,15 @@ import {
   FileText,
   Video,
   Calendar,
-  CreditCard
+  ShoppingBag,
 } from 'lucide-react';
 
 export default function OrdersPage() {
-  const { user } = useAuth();
-  const { itemCount } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
 
   useEffect(() => {
     loadOrders(page);
@@ -40,7 +35,6 @@ export default function OrdersPage() {
       const res = await getMyOrders(pageIndex, 10);
       setOrders(res.content);
       setTotalPages(res.totalPages);
-      setTotalElements(res.totalElements);
     } catch (err: any) {
       setError(err.message || 'Failed to load your orders.');
     } finally {
@@ -52,43 +46,44 @@ export default function OrdersPage() {
     return `Rs. ${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
-  function getPaymentBadge(status: string) {
-    switch (status) {
-      case 'PAID':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-            <CheckCircle2 size={12} />
-            Paid
-          </span>
-        );
-      case 'PENDING':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
-            <Clock size={12} />
-            Awaiting payment
-          </span>
-        );
-      case 'EXPIRED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-muted text-muted-foreground border border-border">
-            <XCircle size={12} />
-            Expired — payment window closed
-          </span>
-        );
-      case 'FAILED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
-            <AlertCircle size={12} />
-            Failed
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-muted text-muted-foreground">
-            {status}
-          </span>
-        );
+  function getPaymentBadge(status: string, latestPaymentStatus?: string | null) {
+    if (status === 'PAID') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+          <CheckCircle2 size={12} />
+          Paid
+        </span>
+      );
     }
+    if (status === 'EXPIRED') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-muted text-muted-foreground border border-border">
+          <XCircle size={12} />
+          Expired
+        </span>
+      );
+    }
+    if (status === 'FAILED' || latestPaymentStatus === 'FAILED') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
+          <AlertCircle size={12} />
+          Payment failed (retry available)
+        </span>
+      );
+    }
+    if (status === 'PENDING') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+          <Clock size={12} />
+          Awaiting payment
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-muted text-muted-foreground">
+        {status}
+      </span>
+    );
   }
 
   function getFulfillmentBadge(status: string) {
@@ -118,55 +113,12 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Navbar */}
-      <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-              AL
-            </div>
-            <span className="font-semibold text-foreground text-sm hidden sm:inline">AL Learning Platform</span>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Link
-            to="/products"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ShoppingBag size={13} />
-            <span className="hidden sm:inline">Catalog</span>
-          </Link>
-          <Link
-            to="/cart"
-            className="relative flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ShoppingCart size={13} />
-            <span>Cart</span>
-            {itemCount > 0 && (
-              <span className="rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold">
-                {itemCount}
-              </span>
-            )}
-          </Link>
-          <Link
-            to="/orders"
-            className="flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-3 py-1.5 text-xs font-semibold text-primary transition"
-          >
-            <Package size={13} />
-            <span>My Orders</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">My Orders</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            View your order history, delivery progress, and payment status.
-          </p>
-        </div>
+    <PageContainer>
+      <div className="space-y-6">
+        <PageHeader
+          title="My Orders"
+          description="View your order history, delivery progress, and payment status."
+        />
 
         {error && (
           <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-destructive flex items-center gap-3 text-xs">
@@ -218,9 +170,17 @@ export default function OrdersPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    {getPaymentBadge(order.paymentStatus)}
+                    {getPaymentBadge(order.paymentStatus, order.latestPaymentStatus)}
                     <span className="text-muted-foreground text-xs">&bull;</span>
                     {getFulfillmentBadge(order.fulfillmentStatus)}
+                    {order.trackingNote && (
+                      <>
+                        <span className="text-muted-foreground text-xs">&bull;</span>
+                        <span className="text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                          Track: {order.trackingNote}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -286,7 +246,7 @@ export default function OrdersPage() {
             )}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PageContainer>
   );
 }

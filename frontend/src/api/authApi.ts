@@ -92,10 +92,11 @@ export async function apiFetch<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const headers: Record<string, string> = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers ?? {}),
+    ...((options.headers as Record<string, string>) ?? {}),
   };
   const res = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   return handleResponse<T>(res);

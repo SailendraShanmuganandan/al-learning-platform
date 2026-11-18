@@ -18,6 +18,7 @@ public record ProductSummaryResponse(
         Integer stockQuantity,
         Integer pageCount,
         Integer durationSeconds,
+        Boolean hasAttachmentPdf,
         int chapterCount,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
@@ -26,6 +27,7 @@ public record ProductSummaryResponse(
         Integer stock = product.getNote() != null ? product.getNote().getStockQuantity() : null;
         Integer pages = product.getNote() != null ? product.getNote().getPageCount() : null;
         Integer duration = product.getVideo() != null ? product.getVideo().getDurationSeconds() : null;
+        Boolean hasPdf = product.getVideo() != null && product.getVideo().getPdfFilePath() != null && !product.getVideo().getPdfFilePath().isBlank();
         int chapters = product.getChapterIds() != null ? product.getChapterIds().size() : 0;
 
         return new ProductSummaryResponse(
@@ -39,6 +41,7 @@ public record ProductSummaryResponse(
                 stock,
                 pages,
                 duration,
+                hasPdf,
                 chapters,
                 product.getCreatedAt(),
                 product.getUpdatedAt()

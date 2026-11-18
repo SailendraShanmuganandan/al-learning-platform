@@ -27,6 +27,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -88,45 +89,43 @@ class PublicProductControllerTest {
      * If someone adds video_url to PublicProductDetailResponse, this test fails.
      */
     @Test
-    @DisplayName("SECURITY: PublicProductDetailResponse must not declare a videoUrl field")
-    void publicDetailResponse_mustNotHaveVideoUrlField() {
-        boolean hasVideoUrlField = false;
+    @DisplayName("SECURITY: PublicProductDetailResponse must not declare videoUrl, providerVideoId, token, or embedUrl fields")
+    void publicDetailResponse_mustNotHaveSensitiveVideoFields() {
+        Set<String> forbidden = Set.of(
+                "videourl", "video_url",
+                "providervideoid", "provider_video_id",
+                "token", "embedurl", "embed_url"
+        );
         for (java.lang.reflect.RecordComponent rc : PublicProductDetailResponse.class.getRecordComponents()) {
-            if (rc.getName().equalsIgnoreCase("videoUrl") ||
-                    rc.getName().equalsIgnoreCase("video_url")) {
-                hasVideoUrlField = true;
-                break;
-            }
+            assertThat(forbidden.contains(rc.getName().toLowerCase()))
+                    .as("PublicProductDetailResponse must NOT contain field '%s' (FR-VID-06)", rc.getName())
+                    .isFalse();
         }
-        assertThat(hasVideoUrlField)
-                .as("PublicProductDetailResponse must NOT contain a videoUrl field (FR-VID-06)")
-                .isFalse();
     }
 
     /**
      * Same guard for the list summary DTO.
      */
     @Test
-    @DisplayName("SECURITY: PublicProductSummaryResponse must not declare a videoUrl field")
-    void publicSummaryResponse_mustNotHaveVideoUrlField() {
-        boolean hasVideoUrlField = false;
+    @DisplayName("SECURITY: PublicProductSummaryResponse must not declare videoUrl, providerVideoId, token, or embedUrl fields")
+    void publicSummaryResponse_mustNotHaveSensitiveVideoFields() {
+        Set<String> forbidden = Set.of(
+                "videourl", "video_url",
+                "providervideoid", "provider_video_id",
+                "token", "embedurl", "embed_url"
+        );
         for (java.lang.reflect.RecordComponent rc : PublicProductSummaryResponse.class.getRecordComponents()) {
-            if (rc.getName().equalsIgnoreCase("videoUrl") ||
-                    rc.getName().equalsIgnoreCase("video_url")) {
-                hasVideoUrlField = true;
-                break;
-            }
+            assertThat(forbidden.contains(rc.getName().toLowerCase()))
+                    .as("PublicProductSummaryResponse must NOT contain field '%s' (FR-VID-06)", rc.getName())
+                    .isFalse();
         }
-        assertThat(hasVideoUrlField)
-                .as("PublicProductSummaryResponse must NOT contain a videoUrl field (FR-VID-06)")
-                .isFalse();
     }
 
     /**
-     * Ensures the JSON serialised by /api/products does NOT contain "video_url" or "videoUrl".
+     * Ensures the JSON serialised by /api/products does NOT contain video_url, provider_video_id, token, or embedUrl.
      */
     @Test
-    @DisplayName("SECURITY: GET /api/products JSON response must not contain video_url")
+    @DisplayName("SECURITY: GET /api/products JSON response must not contain video_url, provider_video_id, token, or embedUrl")
     void listProducts_responseJson_mustNotContainVideoUrl() throws Exception {
         PublicProductSummaryResponse summary = new PublicProductSummaryResponse(
                 1L, "Physics Video", "physics-video",
@@ -143,16 +142,21 @@ class PublicProductControllerTest {
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(body)
-                .as("Public product list response must not expose video_url (FR-VID-06)")
+                .as("Public product list response must not expose sensitive video details (FR-VID-06)")
                 .doesNotContainIgnoringCase("videoUrl")
-                .doesNotContainIgnoringCase("video_url");
+                .doesNotContainIgnoringCase("video_url")
+                .doesNotContainIgnoringCase("providerVideoId")
+                .doesNotContainIgnoringCase("provider_video_id")
+                .doesNotContainIgnoringCase("embedUrl")
+                .doesNotContainIgnoringCase("embed_url")
+                .doesNotContainIgnoringCase("\"token\"");
     }
 
     /**
-     * Ensures the JSON serialised by /api/products/{slug} does NOT contain "video_url" or "videoUrl".
+     * Ensures the JSON serialised by /api/products/{slug} does NOT contain video_url, provider_video_id, token, or embedUrl.
      */
     @Test
-    @DisplayName("SECURITY: GET /api/products/{slug} JSON response must not contain video_url")
+    @DisplayName("SECURITY: GET /api/products/{slug} JSON response must not contain video_url, provider_video_id, token, or embedUrl")
     void getProductBySlug_responseJson_mustNotContainVideoUrl() throws Exception {
         PublicProductDetailResponse detail = new PublicProductDetailResponse(
                 1L, "Physics Video", "physics-video",
@@ -169,9 +173,14 @@ class PublicProductControllerTest {
                 .andReturn().getResponse().getContentAsString();
 
         assertThat(body)
-                .as("Public product detail response must not expose video_url (FR-VID-06)")
+                .as("Public product detail response must not expose sensitive video details (FR-VID-06)")
                 .doesNotContainIgnoringCase("videoUrl")
-                .doesNotContainIgnoringCase("video_url");
+                .doesNotContainIgnoringCase("video_url")
+                .doesNotContainIgnoringCase("providerVideoId")
+                .doesNotContainIgnoringCase("provider_video_id")
+                .doesNotContainIgnoringCase("embedUrl")
+                .doesNotContainIgnoringCase("embed_url")
+                .doesNotContainIgnoringCase("\"token\"");
     }
 
     /**

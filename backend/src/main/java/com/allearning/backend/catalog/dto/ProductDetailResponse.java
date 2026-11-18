@@ -23,12 +23,17 @@ public record ProductDetailResponse(
         Integer pageCount,
         Integer stockQuantity,
         // Video subtype fields
-        String videoUrl,
+        String providerVideoId,
         Integer durationSeconds,
         String videoDescription,
+        Boolean hasAttachmentPdf,
+        String attachmentPdfName,
+        Long attachmentPdfSize,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {
+    public Long id() { return productId; }
+    public ProductType type() { return productType; }
     public static ProductDetailResponse from(Product product) {
         Integer pageCount = null;
         Integer stockQuantity = null;
@@ -37,13 +42,19 @@ public record ProductDetailResponse(
             stockQuantity = product.getNote().getStockQuantity();
         }
 
-        String videoUrl = null;
+        String providerVideoId = null;
         Integer durationSeconds = null;
         String videoDescription = null;
+        Boolean hasAttachmentPdf = false;
+        String attachmentPdfName = null;
+        Long attachmentPdfSize = null;
         if (product.getVideo() != null) {
-            videoUrl = product.getVideo().getVideoUrl();
+            providerVideoId = product.getVideo().getProviderVideoId();
             durationSeconds = product.getVideo().getDurationSeconds();
             videoDescription = product.getVideo().getDescription();
+            hasAttachmentPdf = product.getVideo().getPdfFilePath() != null && !product.getVideo().getPdfFilePath().isBlank();
+            attachmentPdfName = product.getVideo().getPdfOriginalFilename();
+            attachmentPdfSize = product.getVideo().getPdfFileSize();
         }
 
         List<Long> chapters = product.getChapterIds() != null
@@ -62,9 +73,12 @@ public record ProductDetailResponse(
                 chapters,
                 pageCount,
                 stockQuantity,
-                videoUrl,
+                providerVideoId,
                 durationSeconds,
                 videoDescription,
+                hasAttachmentPdf,
+                attachmentPdfName,
+                attachmentPdfSize,
                 product.getCreatedAt(),
                 product.getUpdatedAt()
         );

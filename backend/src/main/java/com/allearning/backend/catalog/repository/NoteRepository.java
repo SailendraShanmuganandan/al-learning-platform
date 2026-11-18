@@ -24,4 +24,13 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
     @Modifying
     @Query("UPDATE Note n SET n.stockQuantity = n.stockQuantity + :quantity WHERE n.productId = :productId")
     int incrementStock(@Param("productId") Long productId, @Param("quantity") int quantity);
+
+    @Query("SELECT COUNT(n) FROM Note n JOIN n.product p WHERE p.status = com.allearning.backend.catalog.entity.ProductStatus.PUBLISHED AND n.stockQuantity <= :threshold")
+    long countLowStockNotes(@Param("threshold") int threshold);
+
+    @Query("SELECT new com.allearning.backend.catalog.dto.LowStockItemDto(p.productId, p.name, n.stockQuantity) " +
+           "FROM Note n JOIN n.product p " +
+           "WHERE p.status = com.allearning.backend.catalog.entity.ProductStatus.PUBLISHED AND n.stockQuantity <= :threshold " +
+           "ORDER BY n.stockQuantity ASC, p.productId ASC")
+    java.util.List<com.allearning.backend.catalog.dto.LowStockItemDto> findLowStockItems(@Param("threshold") int threshold, org.springframework.data.domain.Pageable pageable);
 }

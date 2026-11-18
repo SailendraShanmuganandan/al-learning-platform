@@ -53,6 +53,47 @@ public interface ChapterValidationService {
     boolean isPubliclyVisible(Long chapterId);
 
     /**
+     * Alias for {@link #isPubliclyVisible(Long)} to check active status.
+     */
+    default boolean isChapterActive(Long chapterId) {
+        return isPubliclyVisible(chapterId);
+    }
+
+    /**
+     * Returns summary of chapter (id, name, subjectId, active).
+     */
+    java.util.Optional<ChapterSummary> getChapterSummary(Long chapterId);
+
+    /**
+     * Returns all chapter IDs that are active (chapter is ACTIVE and subject is ACTIVE).
+     */
+    List<Long> getActiveChapterIds();
+
+    /**
+     * Returns active chapter IDs for a subject.
+     */
+    default List<Long> getActiveChapterIdsBySubject(Long subjectId) {
+        return getPublicChapterIdsForSubject(subjectId);
+    }
+
+    /**
+     * Returns all chapter IDs for a subject (admin view, regardless of status).
+     */
+    List<Long> getChapterIdsForSubject(Long subjectId);
+
+    /**
+     * Returns map of chapterId -> chapterName for given chapter IDs.
+     */
+    java.util.Map<Long, String> getChapterNames(Collection<Long> chapterIds);
+
+    record ChapterSummary(
+            Long id,
+            String name,
+            Long subjectId,
+            boolean active
+    ) {}
+
+    /**
      * Lightweight chapter summary transferred across module boundaries.
      */
     record PublicChapterSummary(

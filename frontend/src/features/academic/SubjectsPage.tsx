@@ -1,24 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import { getPublicSubjects, type SubjectResponse } from '../../api/subjectApi';
 import type { ApiError } from '../../api/authApi';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 import {
   BookOpen,
   Search,
   ArrowRight,
-  Shield,
-  User,
-  LogOut,
-  MapPin,
   Layers,
   Sparkles,
   Loader2,
-  ShoppingBag,
 } from 'lucide-react';
 
 export default function SubjectsPage() {
-  const { user, isAuthenticated, logout } = useAuth();
   const [subjects, setSubjects] = useState<SubjectResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,122 +42,29 @@ export default function SubjectsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Navbar */}
-      <header className="border-b border-border bg-card px-6 py-3.5 sticky top-0 z-20 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-3">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold"
-              aria-hidden
-            >
-              AL
-            </div>
-            <span className="font-semibold text-foreground text-sm">AL Learning Platform</span>
-          </Link>
-        </div>
+    <PageContainer>
+      <div className="space-y-8">
+        <PageHeader
+          title="Curriculum & Subjects"
+          description="Browse subjects and dive into chapters, video lessons, and revision quizzes."
+        />
 
-        <nav className="flex items-center gap-3">
-          <Link
-            to="/subjects"
-            id="nav-public-subjects-link"
-            className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition"
-          >
-            <BookOpen size={13} />
-            <span>Subjects</span>
-          </Link>
-
-          <Link
-            to="/products"
-            id="nav-products-link"
-            className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80 transition"
-          >
-            <ShoppingBag size={13} />
-            <span>Notes &amp; Videos</span>
-          </Link>
-
-          {isAuthenticated ? (
-            <>
-              <Link
-                to="/dashboard"
-                id="nav-dashboard-link"
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                <span>Dashboard</span>
-              </Link>
-
-              <Link
-                to="/profile"
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                <User size={13} />
-                <span>Profile</span>
-              </Link>
-
-              <Link
-                to="/addresses"
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                <MapPin size={13} />
-                <span>Addresses</span>
-              </Link>
-
-              {user?.role === 'ADMIN' && (
-                <Link
-                  to="/admin/subjects"
-                  id="nav-admin-link"
-                  className="flex items-center gap-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 text-xs font-semibold hover:bg-primary/20 transition"
-                >
-                  <Shield size={13} />
-                  <span>Admin</span>
-                </Link>
-              )}
-
-              <button
-                type="button"
-                onClick={logout}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
-              >
-                <LogOut size={13} />
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="rounded-lg border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/register"
-                className="rounded-lg bg-primary text-primary-foreground px-3.5 py-1.5 text-xs font-semibold hover:opacity-90 transition"
-              >
-                Get Started
-              </Link>
-            </>
-          )}
-        </nav>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-10 space-y-8">
         {/* Hero Section */}
-        <div className="relative rounded-3xl border border-border bg-gradient-to-br from-card via-card to-primary/5 p-8 sm:p-10 overflow-hidden shadow-xs">
+        <div className="relative rounded-3xl border border-border bg-gradient-to-br from-card via-card to-primary/5 p-6 sm:p-8 overflow-hidden shadow-xs">
           <div className="max-w-2xl space-y-3 relative z-10">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
               <Sparkles size={13} />
               <span>G.C.E. Advanced Level Curriculum</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
               Explore Academic Subjects
-            </h1>
-            <p className="text-muted-foreground text-sm sm:text-base leading-relaxed">
+            </h2>
+            <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed">
               Discover comprehensive subject streams, interactive past papers, and expert learning materials tailored for your A/L examination success.
             </p>
           </div>
 
-          <div className="mt-6 max-w-md relative z-10">
+          <div className="mt-5 max-w-md relative z-10">
             <div className="relative">
               <Search
                 size={16}
@@ -172,67 +74,58 @@ export default function SubjectsPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search subjects by name or keyword…"
-                className="w-full rounded-2xl border border-border bg-background/80 backdrop-blur-xs pl-10 pr-4 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 shadow-xs"
+                placeholder="Search subjects by title or description..."
+                className="w-full rounded-xl border border-border bg-background py-2.5 pl-10 pr-4 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary shadow-xs transition"
               />
             </div>
           </div>
         </div>
 
-        {/* Subjects Grid / Status */}
+        {/* Content */}
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <Loader2 size={32} className="animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">Loading active subjects…</p>
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <Loader2 className="animate-spin text-primary" size={32} />
+            <p className="mt-3 text-xs text-muted-foreground">Loading subjects...</p>
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-center text-destructive text-sm">
-            {error}
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-8 text-center text-xs text-destructive">
+            <p className="font-semibold">{error}</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-3xl border border-border bg-card p-12 text-center space-y-3">
-            <div className="mx-auto h-14 w-14 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground">
-              <BookOpen size={28} />
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 py-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground mb-3">
+              <BookOpen size={20} />
             </div>
-            <h3 className="text-base font-semibold text-foreground">No subjects found</h3>
-            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            <h3 className="font-semibold text-sm text-foreground">No subjects found</h3>
+            <p className="mt-1 text-xs text-muted-foreground max-w-sm">
               {searchQuery
-                ? `No subjects match "${searchQuery}". Try searching for something else.`
-                : 'No active curriculum subjects are available at this time. Please check back later.'}
+                ? `We couldn't find any subject matching "${searchQuery}". Try different keywords.`
+                : 'There are no active subjects published right now. Please check back later.'}
             </p>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="text-xs font-semibold text-primary hover:underline"
-              >
-                Clear Search
-              </button>
-            )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((subject) => (
               <Link
                 key={subject.subjectId}
                 to={`/subjects/${subject.subjectId}`}
-                id={`public-subject-card-${subject.subjectId}`}
-                className="group relative rounded-2xl border border-border bg-card p-6 shadow-xs hover:shadow-md hover:border-primary/40 transition-all flex flex-col justify-between"
+                className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-6 shadow-xs hover:border-primary/50 hover:shadow-md transition duration-200"
               >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
-                      <Layers size={18} />
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-200">
+                      <BookOpen size={20} />
                     </div>
-                    <span className="rounded-full bg-green-500/10 text-green-700 dark:text-green-300 border border-green-500/20 px-2 py-0.5 text-[10px] font-semibold">
-                      Curriculum
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <Layers size={11} />
+                      <span>{(subject as any).chaptersCount != null ? `${(subject as any).chaptersCount} Chapters` : 'Syllabus'}</span>
                     </span>
                   </div>
 
                   <div>
-                    <h2 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+                    <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors">
                       {subject.name}
-                    </h2>
+                    </h3>
                     <p className="mt-2 text-xs text-muted-foreground line-clamp-3 leading-relaxed">
                       {subject.description || 'Comprehensive study modules, video lessons, and revision quizzes are prepared for this subject.'}
                     </p>
@@ -250,12 +143,7 @@ export default function SubjectsPage() {
             ))}
           </div>
         )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border bg-card/60 px-6 py-6 text-center text-xs text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AL Learning Platform. Built for Advanced Level students.</p>
-      </footer>
-    </div>
+      </div>
+    </PageContainer>
   );
 }

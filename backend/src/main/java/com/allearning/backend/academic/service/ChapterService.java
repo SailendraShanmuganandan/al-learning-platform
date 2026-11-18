@@ -243,6 +243,53 @@ public class ChapterService implements ChapterValidationService {
         return chapterRepository.findPublicById(chapterId).isPresent();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<ChapterSummary> getChapterSummary(Long chapterId) {
+        if (chapterId == null) {
+            return java.util.Optional.empty();
+        }
+        return chapterRepository.findById(chapterId)
+                .map(c -> {
+                    boolean active = "ACTIVE".equalsIgnoreCase(c.getStatus()) &&
+                                     c.getSubject() != null &&
+                                     "ACTIVE".equalsIgnoreCase(c.getSubject().getStatus());
+                    Long subId = c.getSubject() != null ? c.getSubject().getSubjectId() : null;
+                    return new ChapterSummary(c.getChapterId(), c.getName(), subId, active);
+                });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> getChapterIdsForSubject(Long subjectId) {
+        if (subjectId == null) {
+            return List.of();
+        }
+        return chapterRepository.findBySubject_SubjectIdOrderByChapterOrderAsc(subjectId)
+                .stream()
+                .map(Chapter::getChapterId)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> getActiveChapterIds() {
+        return chapterRepository.findAllActiveChapterIds();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Map<Long, String> getChapterNames(java.util.Collection<Long> chapterIds) {
+        if (chapterIds == null || chapterIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return chapterRepository.findAllById(chapterIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Chapter::getChapterId,
+                        Chapter::getName
+                ));
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------

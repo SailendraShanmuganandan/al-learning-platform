@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import { getCart, type CartResponse } from '../../api/cartApi';
 import { listAddresses, type AddressResponse } from '../../api/userApi';
 import { createOrder } from '../../api/orderApi';
 import { resendVerification } from '../../api/authApi';
+import { PageContainer } from '../../components/layout/PageContainer';
+import { PageHeader } from '../../components/layout/PageHeader';
 import {
   ShoppingBag,
-  ArrowLeft,
   MapPin,
   Check,
   AlertCircle,
@@ -18,16 +18,12 @@ import {
   ShieldCheck,
   PlusCircle,
   CreditCard,
-  Package,
-  BookOpen,
-  User,
   ShoppingCart,
   ExternalLink
 } from 'lucide-react';
 
 export default function CheckoutPage() {
-  const { user, logout } = useAuth();
-  const { fetchCart, itemCount } = useCart();
+  const { refreshCart } = useCart();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -105,7 +101,7 @@ export default function CheckoutPage() {
       const createdOrder = await createOrder(payload);
 
       // Refresh cart in context
-      await fetchCart();
+      await refreshCart();
 
       // Navigate to order confirmation page
       navigate(`/orders/${createdOrder.orderId}/confirmation`);
@@ -144,63 +140,16 @@ export default function CheckoutPage() {
   const isCartEmpty = !cart || cart.items.length === 0;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Top Navbar */}
-      <header className="border-b border-border bg-card px-6 py-4 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-              AL
-            </div>
-            <span className="font-semibold text-foreground text-sm hidden sm:inline">AL Learning Platform</span>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Link
-            to="/products"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ShoppingBag size={13} />
-            <span className="hidden sm:inline">Catalog</span>
-          </Link>
-          <Link
-            to="/cart"
-            className="relative flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <ShoppingCart size={13} />
-            <span>Cart</span>
-            {itemCount > 0 && (
-              <span className="rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold">
-                {itemCount}
-              </span>
-            )}
-          </Link>
-          <Link
-            to="/orders"
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-          >
-            <Package size={13} />
-            <span className="hidden sm:inline">My Orders</span>
-          </Link>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8">
-        <div className="mb-6">
-          <Link
-            to="/cart"
-            id="back-to-cart-link"
-            className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition mb-2"
-          >
-            <ArrowLeft size={14} />
-            Back to Cart
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Checkout</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Review your order details and delivery address.
-          </p>
-        </div>
+    <PageContainer>
+      <div className="space-y-6">
+        <PageHeader
+          title="Checkout"
+          description="Complete your order and choose shipping address if physical notes are included."
+          breadcrumb={[
+            { label: 'Cart', path: '/cart' },
+            { label: 'Checkout' },
+          ]}
+        />
 
         {/* Global Error Banner */}
         {errorCode && (
@@ -477,7 +426,7 @@ export default function CheckoutPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PageContainer>
   );
 }

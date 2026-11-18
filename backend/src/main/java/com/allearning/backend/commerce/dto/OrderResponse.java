@@ -42,8 +42,29 @@ public record OrderResponse(
         String shipDistrict,
         @JsonProperty("ship_postal_code")
         String shipPostalCode,
-        List<OrderItemResponse> items
+        List<OrderItemResponse> items,
+        @JsonProperty("latest_payment_status")
+        String latestPaymentStatus,
+        @JsonProperty("tracking_note")
+        String trackingNote
 ) {
+    public OrderResponse(Long orderId, Long userId, PaymentStatus paymentStatus,
+                         FulfillmentStatus fulfillmentStatus, BigDecimal subtotal,
+                         BigDecimal deliveryFee, BigDecimal totalAmount, OffsetDateTime expiresAt,
+                         OffsetDateTime createdAt, OffsetDateTime updatedAt, String shipRecipientName,
+                         String shipPhone, String shipAddressLine1, String shipAddressLine2,
+                         String shipCity, String shipDistrict, String shipPostalCode,
+                         List<OrderItemResponse> items) {
+        this(orderId, userId, paymentStatus, fulfillmentStatus, subtotal, deliveryFee, totalAmount,
+                expiresAt, createdAt, updatedAt, shipRecipientName, shipPhone, shipAddressLine1,
+                shipAddressLine2, shipCity, shipDistrict, shipPostalCode, items, null, null);
+    }
+
+    @JsonProperty("latestPaymentStatus")
+    public String getLatestPaymentStatusCamel() {
+        return latestPaymentStatus;
+    }
+
     @JsonProperty("orderId")
     public Long getOrderIdCamel() {
         return orderId;
@@ -122,5 +143,10 @@ public record OrderResponse(
     @JsonProperty("shipPostalCode")
     public String getShipPostalCodeCamel() {
         return shipPostalCode;
+    }
+
+    @JsonProperty("trackingNote")
+    public String getTrackingNoteCamel() {
+        return trackingNote;
     }
 }

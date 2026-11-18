@@ -42,6 +42,7 @@ public class OrderServiceImpl implements OrderService {
     private final UserProfileService userProfileService;
     private final VideoOwnershipService videoOwnershipService;
     private final EmailVerificationGuard emailVerificationGuard;
+    private final com.allearning.backend.commerce.repository.PaymentRepository paymentRepository;
 
     @Value("${app.order.payment-timeout-minutes:30}")
     private long paymentTimeoutMinutes;
@@ -55,7 +56,8 @@ public class OrderServiceImpl implements OrderService {
                             CatalogService catalogService,
                             UserProfileService userProfileService,
                             VideoOwnershipService videoOwnershipService,
-                            EmailVerificationGuard emailVerificationGuard) {
+                            EmailVerificationGuard emailVerificationGuard,
+                            com.allearning.backend.commerce.repository.PaymentRepository paymentRepository) {
         this.cartRepository = cartRepository;
         this.cartInternalService = cartInternalService;
         this.orderRepository = orderRepository;
@@ -63,6 +65,7 @@ public class OrderServiceImpl implements OrderService {
         this.userProfileService = userProfileService;
         this.videoOwnershipService = videoOwnershipService;
         this.emailVerificationGuard = emailVerificationGuard;
+        this.paymentRepository = paymentRepository;
     }
 
     @Override
@@ -273,6 +276,10 @@ public class OrderServiceImpl implements OrderService {
                 ))
                 .toList();
 
+        String latestPaymentStatus = paymentRepository.findTopByOrderIdOrderByCreatedAtDesc(order.getOrderId())
+                .map(p -> p.getPaymentStatus().name())
+                .orElse(null);
+
         return new OrderResponse(
                 order.getOrderId(),
                 order.getUserId(),
@@ -291,7 +298,9 @@ public class OrderServiceImpl implements OrderService {
                 order.getShipCity(),
                 order.getShipDistrict(),
                 order.getShipPostalCode(),
-                itemResponses
+                itemResponses,
+                latestPaymentStatus,
+                order.getTrackingNote()
         );
     }
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { PageContainer } from '../../components/layout/PageContainer';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCart } from '../../contexts/CartContext';
 import {
@@ -9,24 +10,20 @@ import {
 } from '../../api/productApi';
 import type { ApiError } from '../../api/authApi';
 import {
-  BookOpen,
   Video,
   FileText,
-  Shield,
-  User,
-  LogOut,
-  MapPin,
   Loader2,
   AlertCircle,
   ChevronRight,
   Clock,
   BookMarked,
-  ShoppingBag,
   ArrowLeft,
   ShoppingCart,
   Plus,
   Minus,
+  Play,
 } from 'lucide-react';
+import { videoApi } from '../../api/videoApi';
 
 function formatLKR(price: number): string {
   return new Intl.NumberFormat('en-LK', {
@@ -48,8 +45,8 @@ function formatDuration(seconds: number): string {
 export default function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
-  const { addItem, itemCount } = useCart();
+  const { user, isAuthenticated } = useAuth();
+  const { addItem } = useCart();
 
   const [product, setProduct] = useState<PublicProductDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +58,7 @@ export default function ProductDetailPage() {
   const [adding, setAdding] = useState<boolean>(false);
   const [cartError, setCartError] = useState<string | null>(null);
   const [cartSuccess, setCartSuccess] = useState<boolean>(false);
+  const [isOwnedVideo, setIsOwnedVideo] = useState<boolean>(false);
 
   useEffect(() => {
     if (!slug) { navigate('/products', { replace: true }); return; }
@@ -71,7 +69,21 @@ export default function ProductDetailPage() {
     setNotFound(false);
 
     getPublicProductBySlug(slug)
-      .then(p => { if (!cancelled) setProduct(p); })
+      .then(p => {
+        if (!cancelled) {
+          setProduct(p);
+          if (p.type === 'VIDEO' && isAuthenticated && user?.role === 'STUDENT') {
+            videoApi.getMyVideos()
+              .then(ownedList => {
+                if (!cancelled) {
+                  const owned = ownedList.some(v => v.productId === p.id);
+                  setIsOwnedVideo(owned);
+                }
+              })
+              .catch(() => {});
+          }
+        }
+      })
       .catch((err: ApiError) => {
         if (!cancelled) {
           if (err?.status === 404) setNotFound(true);
@@ -81,7 +93,7 @@ export default function ProductDetailPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [slug, navigate]);
+  }, [slug, navigate, isAuthenticated, user]);
 
   const isNote = product?.type === 'PHYSICAL_NOTE';
   const isVideo = product?.type === 'VIDEO';
@@ -121,78 +133,8 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Navbar */}
-      <header className="border-b border-border bg-card px-6 py-3.5 sticky top-0 z-20 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold" aria-hidden>
-              AL
-            </div>
-            <span className="font-semibold text-foreground text-sm">AL Learning Platform</span>
-          </Link>
-        </div>
-
-        <nav className="flex items-center gap-2">
-          <Link to="/subjects" id="nav-subjects-link" className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80 transition">
-            <BookOpen size={13} />
-            <span>Subjects</span>
-          </Link>
-          <Link to="/products" id="nav-products-link" className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80 transition">
-            <ShoppingBag size={13} />
-            <span>Notes &amp; Videos</span>
-          </Link>
-
-          {isAuthenticated ? (
-            <>
-              {user?.role === 'STUDENT' && (
-                <Link
-                  to="/cart"
-                  id="nav-cart-link"
-                  className="relative flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition"
-                >
-                  <ShoppingCart size={13} />
-                  <span>Cart</span>
-                  {itemCount > 0 && (
-                    <span
-                      id="cart-badge-count"
-                      className="ml-1 rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold"
-                    >
-                      {itemCount}
-                    </span>
-                  )}
-                </Link>
-              )}
-              <Link to="/dashboard" id="nav-dashboard-link" className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">
-                <span>Dashboard</span>
-              </Link>
-              <Link to="/profile" className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">
-                <User size={13} />
-                <span>Profile</span>
-              </Link>
-              <Link to="/addresses" className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">
-                <MapPin size={13} />
-              </Link>
-              {user?.role === 'ADMIN' && (
-                <Link to="/admin/subjects" id="nav-admin-link" className="flex items-center gap-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 px-3 py-1.5 text-xs font-semibold hover:bg-primary/20 transition">
-                  <Shield size={13} />
-                  <span>Admin</span>
-                </Link>
-              )}
-              <button type="button" onClick={logout} className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition">
-                <LogOut size={13} />
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" className="rounded-lg border border-border px-3.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition">Sign In</Link>
-              <Link to="/register" className="rounded-lg bg-primary text-primary-foreground px-3.5 py-1.5 text-xs font-semibold hover:opacity-90 transition">Get Started</Link>
-            </>
-          )}
-        </nav>
-      </header>
-
-      <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-8 space-y-8">
+    <PageContainer>
+      <div className="space-y-8">
         {/* Back link */}
         <Link
           to="/products"
@@ -302,87 +244,129 @@ export default function ProductDetailPage() {
                   </div>
                 )}
 
-                {/* ── Add to Cart Actions ── */}
-                <div className="space-y-3 pt-2">
-                  {isNote && !isOutOfStock && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">Quantity</span>
-                      <div className="flex items-center rounded-lg border border-border bg-card">
-                        <button
-                          type="button"
-                          id="detail-qty-decrease"
-                          disabled={quantity <= 1 || adding}
-                          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                          className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition"
-                          aria-label="Decrease quantity"
-                        >
-                          <Minus size={13} />
-                        </button>
-                        <span
-                          id="detail-qty-value"
-                          className="w-8 text-center text-xs font-semibold text-foreground select-none"
-                        >
-                          {quantity}
-                        </span>
-                        <button
-                          type="button"
-                          id="detail-qty-increase"
-                          disabled={adding}
-                          onClick={() => setQuantity((q) => q + 1)}
-                          className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition"
-                          aria-label="Increase quantity"
-                        >
-                          <Plus size={13} />
-                        </button>
-                      </div>
+                {/* PDF Notes badge */}
+                {isVideo && product.hasAttachmentPdf && (
+                  <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm">
+                    <FileText size={16} className="text-primary shrink-0" />
+                    <div>
+                      <span className="font-semibold text-foreground">Includes Supplementary Lecture Notes</span>
+                      {product.attachmentPdfName && (
+                        <span className="text-xs text-muted-foreground ml-2">({product.attachmentPdfName})</span>
+                      )}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  <button
-                    type="button"
-                    id="add-to-cart-btn"
-                    disabled={adding || isOutOfStock}
-                    onClick={handleAddToCart}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
-                  >
-                    {adding ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        <span>Adding to Cart...</span>
-                      </>
-                    ) : isOutOfStock ? (
-                      <span>Out of Stock</span>
-                    ) : (
-                      <>
-                        <ShoppingCart size={16} />
-                        <span>Add to Cart</span>
-                      </>
-                    )}
-                  </button>
-
-                  {/* Error & Success Feedback */}
-                  {cartError && (
-                    <div
-                      id="add-to-cart-error"
-                      className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2"
-                    >
-                      <AlertCircle size={14} className="flex-shrink-0" />
-                      <span>{cartError}</span>
-                    </div>
-                  )}
-
-                  {cartSuccess && (
-                    <div
-                      id="add-to-cart-success"
-                      className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center justify-between"
-                    >
-                      <span className="font-medium">Added to cart!</span>
-                      <Link to="/cart" id="view-cart-link" className="underline font-semibold hover:opacity-80">
-                        View Cart
+                {/* ── Add to Cart Actions or Watch Now ── */}
+                {isVideo && isOwnedVideo ? (
+                  <div className="space-y-3 pt-2">
+                    <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 text-center space-y-3">
+                      <p className="text-xs font-semibold text-purple-900 dark:text-purple-300 flex items-center justify-center gap-1.5">
+                        <Video size={16} />
+                        <span>You own this video course</span>
+                      </p>
+                      <Link
+                        to={`/my-videos/${product.id}`}
+                        id="watch-now-btn"
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white py-3 text-sm font-semibold transition shadow-sm"
+                      >
+                        <Play size={16} />
+                        <span>Watch now</span>
                       </Link>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 pt-2">
+                    {isNote && !isOutOfStock && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Quantity</span>
+                        <div className="flex items-center rounded-lg border border-border bg-card">
+                          <button
+                            type="button"
+                            id="detail-qty-decrease"
+                            disabled={quantity <= 1 || adding}
+                            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                            className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition"
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus size={13} />
+                          </button>
+                          <span
+                            id="detail-qty-value"
+                            className="w-8 text-center text-xs font-semibold text-foreground select-none"
+                          >
+                            {quantity}
+                          </span>
+                          <button
+                            type="button"
+                            id="detail-qty-increase"
+                            disabled={adding}
+                            onClick={() => setQuantity((q) => q + 1)}
+                            className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition"
+                            aria-label="Increase quantity"
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      id="add-to-cart-btn"
+                      disabled={adding || isOutOfStock}
+                      onClick={handleAddToCart}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground py-3 text-sm font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-sm"
+                    >
+                      {adding ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Adding to Cart...</span>
+                        </>
+                      ) : isOutOfStock ? (
+                        <span>Out of Stock</span>
+                      ) : (
+                        <>
+                          <ShoppingCart size={16} />
+                          <span>Add to Cart</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* Error & Success Feedback */}
+                    {cartError && (
+                      <div
+                        id="add-to-cart-error"
+                        className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center justify-between gap-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertCircle size={14} className="flex-shrink-0" />
+                          <span>{cartError}</span>
+                        </div>
+                        {(cartError.includes('already own') || cartError.includes('VIDEO_ALREADY_OWNED')) && (
+                          <Link
+                            to={`/my-videos/${product.id}`}
+                            className="underline font-semibold hover:opacity-80 shrink-0"
+                          >
+                            Watch it now
+                          </Link>
+                        )}
+                      </div>
+                    )}
+
+                    {cartSuccess && (
+                      <div
+                        id="add-to-cart-success"
+                        className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center justify-between"
+                      >
+                        <span className="font-medium">Added to cart!</span>
+                        <Link to="/cart" id="view-cart-link" className="underline font-semibold hover:opacity-80">
+                          View Cart
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -447,11 +431,7 @@ export default function ProductDetailPage() {
             </div>
           </div>
         )}
-      </main>
-
-      <footer className="border-t border-border bg-card/60 px-6 py-6 text-center text-xs text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AL Learning Platform. Built for Advanced Level students.</p>
-      </footer>
-    </div>
+      </div>
+    </PageContainer>
   );
 }

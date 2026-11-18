@@ -76,6 +76,13 @@ public interface ChapterRepository extends JpaRepository<Chapter, Long> {
     List<Chapter> findPublicBySubjectId(@Param("subjectId") Long subjectId);
 
     /**
+     * Returns all chapter IDs that are ACTIVE and whose subject is also ACTIVE.
+     */
+    @Query("SELECT c.chapterId FROM Chapter c JOIN c.subject s " +
+           "WHERE c.status = 'ACTIVE' AND s.status = 'ACTIVE'")
+    List<Long> findAllActiveChapterIds();
+
+    /**
      * Returns an ACTIVE chapter whose subject is also ACTIVE, or empty.
      */
     @Query("SELECT c FROM Chapter c JOIN c.subject s " +
